@@ -29,6 +29,9 @@ web/.next/
 .env.*.local
 .env.production
 
+# Embedded reference repo (not part of the deploy)
+joywin-sec-financials/
+
 # OS / editor
 .DS_Store
 Thumbs.db

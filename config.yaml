@@ -1,0 +1,50 @@
+# config.yaml — every knob in one place (docs/DATA.md §Config).
+# See docs/SPEC.md for design and CLAUDE.md for the hard rules.
+
+# --- Gate 1: size ---
+size_floor_usd: 2000000000           # pass if market cap >= this ($2B). (plain int: PyYAML has no _ separators)
+
+# --- Gate 2: fundamentals ---
+leverage_flag_net_debt_ebitda: 6.0   # producers run higher; equipment should be stricter
+
+# --- returns / regression windows ---
+return_frequency: daily
+time_horizon_days: 252               # PRIMARY beta + residual window (~12 months); the mandate's "last 1 year"
+corr_headline_days: 252              # headline STATIC correlation/beta window = "how correlated over the last year"
+rolling_corr_days: 63                # rolling-correlation window (~1 trading quarter). Must be << the 252d sample.
+rolling_beta_days: 90                # rolling-beta diagnostic window (decoupling view)
+robustness_horizon_days: 126         # optional 6-month re-run (sanity check, not a gate)
+
+# --- factor model (user toggle per run; NO auto-switching) ---
+factor_set_default: 4factor          # 4factor | commodity | boss | drivers (v2 Performance-Drivers panel)
+factor_proxies:
+  market: SPY
+  rates: TLT
+  oil: CL=F                          # WTI front-month FUTURE (not USO — roll bleed).
+  brent: BZ=F                        # ICE Brent — UNUSED (dropped 2026-07-23: ~0.92 collinear with WTI).
+  gas: NG=F                          # Henry Hub front-month FUTURE (not UNG — roll bleed).
+  # --- Performance-Drivers (v2) style + macro proxies (used only in `drivers` mode) ---
+  value: IWD                         # Russell 1000 Value
+  growth: IWF                        # Russell 1000 Growth
+  momentum: MTUM                     # iShares MSCI USA Momentum
+  lowvol: USMV                       # iShares MSCI USA Min-Vol
+  quality: QUAL                      # iShares MSCI USA Quality
+  credit: HYG                        # iShares iBoxx High-Yield — Macro credit proxy
+  metals: DBB                        # Invesco DB Base Metals — non-energy commodity (Macro)
+  # `sector` has no fixed proxy — it is resolved per-stock (data/sector.py) to a GICS SPDR sector ETF.
+
+# Tickers excluded from every run (e.g. names we already hold a position in — boss's instruction).
+exclude_tickers:
+  - GEV                              # GE Vernova — existing position; don't cover.
+
+# --- fundamentals backend (swappable; one-line switch) ---
+fundamentals_source: edgar           # edgar (SEC filings, primary source) | refinitiv | public (yfinance)
+
+# --- relative-strength benchmark, auto-picked from Gate-3 type ---
+benchmark_map:
+  merchant_gas: XLU
+  nuclear: XLU
+  regulated: XLU
+  equipment: XLI
+  renewable: ICLN
+  geothermal: ICLN

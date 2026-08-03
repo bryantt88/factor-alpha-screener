@@ -1,0 +1,14 @@
+# Render Blueprint — one web service that runs the whole app (FastAPI serves the built front-end + /api).
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo -> set GEMINI_API_KEY secret -> Apply.
+services:
+  - type: web
+    name: ai-power-screener
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api.server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false          # paste your AIza... key in the Render dashboard (kept secret, not in git)
+      - key: PYTHON_VERSION
+        value: "3.12.4"

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Run artifacts / outputs (audit trail lives here; not committed)
+runs/*
+!runs/.gitkeep
+
+# Cached data (e.g. one-time Refinitiv pull)
+*.parquet
+data/refinitiv_fundamentals.csv
+
+# Node / Next.js front-end
+web/node_modules/
+web/.next/
+# NOTE: web/out/ IS committed on purpose — the Python host serves it (no Node build in the cloud).
+
+# Secrets — never commit an API key
+.env
+.env.local
+.env.*.local
+.env.production
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

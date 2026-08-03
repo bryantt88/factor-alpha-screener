@@ -1,0 +1,23 @@
+# AI-Power Stack Screener — dependencies
+# Steps 1-2 (regression engine + charts + gates) run on free public price data only.
+
+pandas
+numpy
+statsmodels        # OLS
+yfinance           # prices, returns, market cap, factor series
+plotly             # interactive charts (the 5 outputs)
+pyyaml             # config.yaml
+streamlit          # legacy platform UI (retired; kept for src/app/ui.py reference)
+pytest             # tests
+
+# --- API server (React/FastAPI platform + cloud deploy) ---
+fastapi            # REST API wrapping run_screen
+uvicorn[standard]  # ASGI server (production start command)
+pydantic           # request/response models
+
+# --- notes ---
+# Gate-3 agent (Step 4) uses the `gemini` CLI as a $0 subprocess backend (no pip dep). A paid
+#   fallback rung (OpenRouter/MiniMax) would add an HTTP client (e.g. requests) then.
+# UI framework locked = Streamlit (2026-07-22). Reflex is the migration target if this ever needs
+#   true multi-user / hosted deployment — the pipeline (src/) does not change, only src/app/.
+# Optional: kaleido  — static PNG export of Plotly charts (HTML is the default, no dep needed).

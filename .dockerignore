@@ -1,0 +1,10 @@
+.git
+web/node_modules
+web/.next
+__pycache__
+**/__pycache__
+runs/*
+!runs/.gitkeep
+.env
+.env.*
+joywin-sec-financials

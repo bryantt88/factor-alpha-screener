@@ -1,3 +1,13 @@
+---
+title: AI Power Screener
+emoji: ⚡
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # AI-Power Stack Screener
 
 A screening + regression tool for finding mid-to-large-cap, US-listed **AI-power-stack** equities — power generators and power/data-center equipment makers — that are (1) the right size, (2) genuinely exposed to AI data-center demand, (3) fundamentally sound, and (4) on a real *idiosyncratic* uptrend once commodity and market noise is stripped out.

@@ -90,6 +90,10 @@ _INT_SYNS = (
     "InterestExpenseBorrowings", "InterestExpenseDebtExcludingAmortization", "InterestExpenseOperating",
     "InterestCostsIncurred", "InterestPaidNet", "InterestPaid",   # last two: cash-flow-stmt interest paid
 )
+# Net income ATTRIBUTABLE TO PARENT: NetIncomeLoss is already parent-only (do NOT subtract NCI);
+# ProfitLoss (consolidated incl. NCI) is the fallback for filers that retired NetIncomeLoss (e.g. BE
+# switched ~2022). First-that-exists-most-recent wins via _best_annual / _quarter_map.
+_NI_SYNS = ("NetIncomeLoss", "ProfitLoss")
 STALE_AFTER_DAYS = 550   # ~18 months: a still-current annual has buffer; a retired-tag figure is caught
 
 
@@ -509,7 +513,9 @@ class EdgarFundamentals(FundamentalsBackend):
         basis = self._from_edgar(ticker, vals)       # filed financials; failures -> unverified
         self._eps_pair_from_yfinance(ticker, vals)   # consensus EPS (not in filings)
         unverified = {k for k in REQUIRED_FIELDS if vals[k] is None}
-        return {"values": vals, "unverified": unverified, "basis": basis}
+        from ..industry import benchmark_for         # Damodaran industry averages (real, sourced)
+        return {"values": vals, "unverified": unverified, "basis": basis,
+                "industry": benchmark_for(ticker)}
 
     def _from_edgar(self, ticker: str, vals: dict) -> str | None:
         """Populate flow + balance-sheet fields; return the flow basis label ('TTM->..' / 'FYxxxx')."""
@@ -538,6 +544,17 @@ class EdgarFundamentals(FundamentalsBackend):
                 basis = f"TTM->{end.isoformat()}" + ("" if source == "op" else " (EBIT+D&A)")
                 if prev and prev[1] and rev:         # YoY = current TTM margin - year-earlier TTM margin
                     vals["ebitda_margin_yoy"] = ebitda / rev - prev[2] / prev[1]
+                # net income (same TTM quarters) + revenue/net-income YoY trend (P/E computed later)
+                ni_q = _quarter_map(_best_duration(f, *_NI_SYNS))
+                ni_now = _ttm(ni_q, end)
+                if ni_now is not None:
+                    vals["net_income"] = ni_now
+                if prev:
+                    if prev[1] and rev:
+                        vals["revenue_yoy"] = (rev - prev[1]) / prev[1]
+                    ni_prev = _ttm(ni_q, prev[0])
+                    if ni_now is not None and ni_prev not in (None, 0):
+                        vals["net_income_yoy"] = (ni_now - ni_prev) / abs(ni_prev)
             else:
                 rev_a = _best_annual(f, *_REV_SYNS)
                 da_a = _best_annual(f, *_DA_SYNS)
@@ -579,12 +596,33 @@ class EdgarFundamentals(FundamentalsBackend):
                             if prev_fy in eb_fy and prev_fy in rev_a and rev_a[prev_fy][0]:
                                 m_prev = eb_fy[prev_fy][0] / rev_a[prev_fy][0]
                                 vals["ebitda_margin_yoy"] = m_now - m_prev
+                            if prev_fy in rev_a and rev_a[prev_fy][0]:
+                                vals["revenue_yoy"] = (rev - rev_a[prev_fy][0]) / rev_a[prev_fy][0]
+
+            # net income (annual fallback if the TTM path didn't produce one) + YoY
+            if vals.get("net_income") is None:
+                ni_a = _best_annual(f, *_NI_SYNS)
+                if ni_a:
+                    ly_ni = max(ni_a)
+                    v_ni, e_ni = ni_a[ly_ni]
+                    if fresh(e_ni):
+                        vals["net_income"] = v_ni
+                        pf = ly_ni - 1
+                        if vals.get("net_income_yoy") is None and pf in ni_a and ni_a[pf][0]:
+                            vals["net_income_yoy"] = (v_ni - ni_a[pf][0]) / abs(ni_a[pf][0])
 
             if ebitda is not None:
                 vals["ebitda"] = ebitda
                 if rev:
                     vals["ebitda_margin"] = ebitda / rev
                     vals["last_rev_actual"] = rev
+
+            # --- live market cap (fetched once) → P/E and trailing EV/EBITDA ---
+            from ..market_cap import get_market_cap
+            mc = get_market_cap(ticker)
+            ni = vals.get("net_income")
+            if mc and ni and ni > 0:                      # P/E only meaningful on positive earnings
+                vals["pe_ratio"] = mc / ni
 
             # --- balance sheet: net debt at the latest fresh instant (see _net_debt) ---
             nd = _net_debt(f, fresh)
@@ -594,9 +632,7 @@ class EdgarFundamentals(FundamentalsBackend):
                     vals["net_debt"] = net_debt
                     if ebitda:
                         vals["net_debt_to_ebitda"] = net_debt / ebitda
-                        from ..market_cap import get_market_cap       # trailing EV/EBITDA on LIVE mkt cap
-                        mc = get_market_cap(ticker)
-                        if mc:
+                        if mc:                            # trailing EV/EBITDA on LIVE mkt cap
                             vals["fwd_ev_ebitda"] = (mc + net_debt) / ebitda
             return basis
         except Exception:

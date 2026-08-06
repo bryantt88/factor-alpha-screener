@@ -9,6 +9,8 @@ REQUIRED_FIELDS = (
     "ebitda_margin", "ebitda_margin_yoy", "net_debt", "ebitda", "net_debt_to_ebitda",
     "last_eps_actual", "last_eps_consensus", "last_rev_actual", "last_rev_consensus",
     "fwd_ev_ebitda", "ev_ebitda_3yr_median",
+    # profitability + trend + valuation multiple (added v1.2)
+    "net_income", "net_income_yoy", "revenue_yoy", "pe_ratio",
 )
 
 

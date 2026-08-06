@@ -130,3 +130,75 @@ def load_run(run_id: str, runs_dir: str = "runs") -> tuple[dict, pd.DataFrame | 
     csv = os.path.join(folder, "scorecard.csv")
     df = pd.read_csv(csv) if os.path.isfile(csv) else None
     return meta, df
+
+
+# --- backtest knowledge base (separate from screen runs) -----------------------------------------
+# Backtest payloads are already JSON-safe (built in api/serialize + server), so we persist one JSON
+# file per saved backtest in backtests/. Id is a content hash of (universe + params) so re-saving the
+# same configuration overwrites its slot (dedup), like the screen run_id.
+BACKTESTS_DIR = "backtests"
+
+
+def _backtest_id(payload: dict) -> str:
+    import hashlib
+    key = json.dumps({"stocks": sorted(payload.get("stocks", [])),
+                      "factors": sorted(payload.get("factors", [])),
+                      "params": payload.get("params", {})}, sort_keys=True)
+    return "bt_" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:12]
+
+
+def save_backtest(payload: dict, name: str = "", timestamp: str | None = None,
+                  runs_dir: str = BACKTESTS_DIR) -> str:
+    """Persist a backtest result (opt-in). Returns its id. Stores headline stats for the list plus the
+    full payload for exact re-render."""
+    os.makedirs(runs_dir, exist_ok=True)
+    bid = _backtest_id(payload)
+    neutral = payload.get("neutral", {}) or {}
+    stats = payload.get("stats", {}) or {}
+    rec = {
+        "id": bid,
+        "name": (name or "").strip() or bid,
+        "timestamp": timestamp or _dt.datetime.now().isoformat(timespec="seconds"),
+        "stocks": payload.get("stocks", []),
+        "factors": payload.get("factors", []),
+        "params": payload.get("params", {}),
+        "summary": {
+            "totalReturn": neutral.get("totalReturn"), "cagr": neutral.get("cagr"),
+            "annVol": neutral.get("annVol"), "maxDrawdown": neutral.get("maxDrawdown"),
+            "sharpe": neutral.get("sharpe"), "realizedMarketBeta": stats.get("realizedMarketBeta"),
+        },
+        "payload": payload,
+    }
+    with open(os.path.join(runs_dir, bid + ".json"), "w", encoding="utf-8") as f:
+        json.dump(rec, f)
+    return bid
+
+
+def list_backtests(runs_dir: str = BACKTESTS_DIR) -> list[dict]:
+    """Saved backtests (most recent first): id, name, timestamp, universe size, params, headline stats."""
+    out = []
+    if not os.path.isdir(runs_dir):
+        return out
+    for fn in os.listdir(runs_dir):
+        if not fn.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(runs_dir, fn), encoding="utf-8") as f:
+                rec = json.load(f)
+            out.append({k: rec.get(k) for k in ("id", "name", "timestamp", "stocks", "factors",
+                                                "params", "summary")})
+        except Exception:
+            continue
+    return sorted(out, key=lambda m: m.get("timestamp", ""), reverse=True)
+
+
+def load_backtest(bid: str, runs_dir: str = BACKTESTS_DIR) -> dict | None:
+    """Return the full saved backtest payload, or None if absent/unreadable."""
+    path = os.path.join(runs_dir, bid + ".json")
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f).get("payload")
+    except Exception:
+        return None

@@ -32,6 +32,7 @@ def check_fundamentals(fund: dict, leverage_flag: float) -> FundVerdict:
     vals = fund["values"]
     basis = fund.get("basis")          # flow-item basis ('TTM->..' | 'FYxxxx') — appended to flow notes
     sfx = f" [{basis}]" if basis else ""
+    ind = fund.get("industry") or {}   # Damodaran industry averages (real, sourced) — {} if unmapped
     m: dict[str, MetricVerdict] = {}
 
     # EBITDA margin + trend
@@ -46,6 +47,9 @@ def check_fundamentals(fund: dict, leverage_flag: float) -> FundVerdict:
         m["ebitda_margin"] = MetricVerdict("flag", margin, f"{margin:.1%}, YoY {yoy:+.1%} (deteriorating)")
     else:
         m["ebitda_margin"] = MetricVerdict("pass", margin, f"{margin:.1%}, YoY {yoy:+.1%}")
+    # append the industry-average EBITDA margin for context (informational)
+    if margin is not None and ind.get("ebitda_margin") is not None and m["ebitda_margin"].status != "unverified":
+        m["ebitda_margin"].note += f" · ind {ind['ebitda_margin']:.0%}"
 
     # net debt / EBITDA
     nde = vals["net_debt_to_ebitda"]
@@ -65,20 +69,54 @@ def check_fundamentals(fund: dict, leverage_flag: float) -> FundVerdict:
         m["earnings_surprise"] = MetricVerdict(status, surp, f"{surp:+.1%} vs consensus (beat)" if surp > 0
                                                else f"{surp:+.1%} vs consensus (miss)")
 
-    # valuation — FLAG only, never a fail
-    ev, med = vals["fwd_ev_ebitda"], vals["ev_ebitda_3yr_median"]
+    # revenue + YoY trend (informational — does not gate pass/fail)
+    rev, rev_yoy = vals.get("last_rev_actual"), vals.get("revenue_yoy")
+    if rev is None:
+        m["revenue"] = MetricVerdict("unverified", None, "revenue unavailable")
+    else:
+        trend = f", YoY {rev_yoy:+.1%}" if rev_yoy is not None else ", YoY unverified"
+        status = "pass" if (rev_yoy is None or rev_yoy >= 0) else "flag"
+        m["revenue"] = MetricVerdict(status, rev, f"${rev/1e9:.1f}B{trend}")
+
+    # net income + YoY trend (informational)
+    ni, ni_yoy = vals.get("net_income"), vals.get("net_income_yoy")
+    if ni is None:
+        m["net_income"] = MetricVerdict("unverified", None, "net income unavailable")
+    else:
+        trend = f", YoY {ni_yoy:+.1%}" if ni_yoy is not None else ", YoY unverified"
+        status = "pass" if (ni > 0 and (ni_yoy is None or ni_yoy >= 0)) else "flag"
+        m["net_income"] = MetricVerdict(status, ni, f"${ni/1e9:.1f}B{trend}")
+
+    # P/E vs industry average (FLAG only if richer than its industry, never a fail)
+    pe = vals.get("pe_ratio")
+    ind_pe = ind.get("pe")
+    if pe is None:
+        m["pe"] = MetricVerdict("unverified", None, "P/E unavailable (needs positive earnings)")
+    elif ind_pe is not None:
+        rich = pe > ind_pe
+        m["pe"] = MetricVerdict("flag" if rich else "pass", pe,
+                                f"{pe:.1f}x vs {ind['name']} avg {ind_pe:.0f}x" + (" (rich)" if rich else ""))
+    else:
+        m["pe"] = MetricVerdict("pass", pe, f"{pe:.1f}x")
+
+    # valuation — EV/EBITDA vs INDUSTRY average (Damodaran); FLAG only, never a fail
+    ev, ind_ev, med = vals["fwd_ev_ebitda"], ind.get("ev_ebitda"), vals["ev_ebitda_3yr_median"]
     if ev is None:
         m["valuation"] = MetricVerdict("unverified", None, "EV/EBITDA unavailable")
+    elif ind_ev is not None:
+        rich = ev > ind_ev
+        m["valuation"] = MetricVerdict("flag" if rich else "pass", ev,
+                                       f"{ev:.1f}x vs {ind['name']} avg {ind_ev:.1f}x" + (" (rich)" if rich else ""))
     elif med is None:
-        m["valuation"] = MetricVerdict("flag", ev, f"EV/EBITDA {ev:.1f}x (own 3yr median unverified)")
+        m["valuation"] = MetricVerdict("flag", ev, f"EV/EBITDA {ev:.1f}x (no industry benchmark)")
     elif ev > med:
-        m["valuation"] = MetricVerdict("flag", ev, f"{ev:.1f}x vs {med:.1f}x median (rich)")
+        m["valuation"] = MetricVerdict("flag", ev, f"{ev:.1f}x vs {med:.1f}x own median (rich)")
     else:
-        m["valuation"] = MetricVerdict("pass", ev, f"{ev:.1f}x vs {med:.1f}x median")
+        m["valuation"] = MetricVerdict("pass", ev, f"{ev:.1f}x vs {med:.1f}x own median")
 
     # label the flow-derived metrics with their basis (TTM vs fiscal year) — auditable in every cell
     if basis:
-        for k in ("ebitda_margin", "net_debt_to_ebitda", "valuation"):
+        for k in ("ebitda_margin", "net_debt_to_ebitda", "valuation", "revenue", "net_income"):
             if k in m and m[k].status != "unverified":
                 m[k].note += sfx
 

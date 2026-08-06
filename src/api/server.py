@@ -12,6 +12,7 @@ localhost dev ports so the Next.js dev server can call it.
 """
 from __future__ import annotations
 
+import math
 import os
 
 from fastapi import FastAPI, HTTPException
@@ -39,15 +40,25 @@ app.add_middleware(
 )
 
 
+class Driver(BaseModel):
+    name: str                      # logical factor name, e.g. 'market', 'fx', 'coal'
+    ticker: str                    # yfinance proxy, e.g. '^JKSE', 'IDR=X', 'BZ=F'
+    group: str = ""                # optional driver-group label (else derived)
+
+
 class ScreenRequest(BaseModel):
     tickers: list[str] = Field(default_factory=list)
     factorSet: str = "4factor"
-    horizon: int = 252
+    horizon: int = 252                 # risk window (betas/hedge)
+    signalHorizon: int = 63            # signal window (fast idiosyncratic-trajectory timing)
     equipment: list[str] = Field(default_factory=list)
     fundamentalsSource: str = "edgar"
     sizeFloorB: float = 2.0
     name: str = ""
     save: bool = False
+    # When present, the run uses a USER-DEFINED factor set (region preset or fully custom) instead of a
+    # named mode — this is what makes the model region-agnostic (US vs Indonesia vs anything).
+    drivers: list[Driver] | None = None
 
 
 @app.get("/api/health")
@@ -68,10 +79,33 @@ def screen(req: ScreenRequest) -> dict:
     tickers = [t.strip().upper() for t in req.tickers if t.strip()]
     if not tickers:
         raise HTTPException(status_code=422, detail="Provide at least one ticker.")
-    cfg = load_config("config.yaml", tickers=tickers, factor_set=req.factorSet, horizon=req.horizon,
+    # A supplied driver list overrides the named mode -> a fully custom (region-agnostic) factor set.
+    factor_set, custom_factors, custom_groups = req.factorSet, {}, {}
+    if req.drivers:
+        for d in req.drivers:
+            name, tk = d.name.strip().lower(), d.ticker.strip()
+            if not name or not tk:
+                continue
+            custom_factors[name] = tk
+            if d.group.strip():
+                custom_groups[name] = d.group.strip()
+        if not custom_factors:
+            raise HTTPException(status_code=422, detail="Driver list has no valid name/ticker pairs.")
+        factor_set = "custom"
+    cfg = load_config("config.yaml", tickers=tickers, factor_set=factor_set, horizon=req.horizon,
+                      signal_horizon_days=req.signalHorizon,
                       fundamentals_source=req.fundamentalsSource, size_floor_usd=req.sizeFloorB * 1e9,
-                      equipment_tickers=[t.strip().upper() for t in req.equipment if t.strip()])
-    run_id = hashing.compute_run_id(cfg.tickers, cfg.factor_set, cfg.return_frequency,
+                      equipment_tickers=[t.strip().upper() for t in req.equipment if t.strip()],
+                      custom_factors=custom_factors, custom_groups=custom_groups)
+    # Custom runs all share factor_set='custom' — fold the driver set into the run-id label so two
+    # different custom driver sets don't collide (and stay path-safe: no ':' in the dir name).
+    fs_label = cfg.factor_set
+    if cfg.factor_set == "custom":
+        import hashlib
+        sig = hashlib.sha1("|".join(f"{k}={v}" for k, v in sorted(cfg.custom_factors.items()))
+                           .encode("utf-8")).hexdigest()[:6]
+        fs_label = f"custom-{sig}"
+    run_id = hashing.compute_run_id(cfg.tickers, fs_label, cfg.return_frequency,
                                     cfg.time_horizon_days, cfg.as_of_date)
     cfg.output_dir = os.path.join("runs", run_id)
     result = run_screen(cfg, make_charts=False)
@@ -99,6 +133,101 @@ def history_run(run_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Run not found or has no saved full result.")
     meta, _ = store.load_run(run_id)
     return screen_payload(full, run_id=run_id, name=meta.get("name", run_id))
+
+
+# --- backtest (walk-forward market-neutral book) -------------------------------------------------
+def _json_safe(x):
+    """Recursively replace non-finite floats (NaN/inf) with None so the payload is strict JSON."""
+    if isinstance(x, float):
+        return x if math.isfinite(x) else None
+    if isinstance(x, dict):
+        return {k: _json_safe(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_json_safe(v) for v in x]
+    return x
+
+
+class BacktestRequest(BaseModel):
+    tickers: list[str] = Field(default_factory=list)
+    factorSet: str = "drivers"
+    drivers: list[Driver] | None = None
+    horizon: int = 252                 # risk window (betas/hedge)
+    signalHorizon: int = 63            # signal window (entry timing)
+    rebalance: int = 21                # trading days between rebalances (21≈monthly, 5≈weekly, 1=daily)
+    costBps: float = 10.0              # round-trip transaction cost per unit turnover, basis points
+    testDays: int = 756                # length of the walk-forward test window (~3y)
+    minLongs: int = 3                  # diversification floor — hold cash unless this many names qualify
+    maxWeight: float = 0.35            # single-name weight cap
+    useSignalGate: bool = True         # apply the recent-'improving' momentum entry filter
+    borrowBps: float = 50.0            # annual short-borrow cost on short notional, basis points
+    minTstat: float = 2.0              # alpha conviction bar (t≥2 = strict "Real"; lower = trades more)
+    maxLongs: int = 0                  # cap on names held (top-N by IR); 0 = no cap
+
+
+@app.post("/api/backtest")
+def backtest(req: BacktestRequest) -> dict:
+    tickers = [t.strip().upper() for t in req.tickers if t.strip()]
+    if not tickers:
+        raise HTTPException(status_code=422, detail="Provide at least one ticker.")
+    factor_set, custom_factors, custom_groups = req.factorSet, {}, {}
+    if req.drivers:
+        for d in req.drivers:
+            name, tk = d.name.strip().lower(), d.ticker.strip()
+            if name and tk:
+                custom_factors[name] = tk
+                if d.group.strip():
+                    custom_groups[name] = d.group.strip()
+        if not custom_factors:
+            raise HTTPException(status_code=422, detail="Driver list has no valid name/ticker pairs.")
+        factor_set = "custom"
+    cfg = load_config("config.yaml", tickers=tickers, factor_set=factor_set, horizon=req.horizon,
+                      signal_horizon_days=req.signalHorizon,
+                      custom_factors=custom_factors, custom_groups=custom_groups)
+
+    from ..backtest import load_returns, run_backtest
+    frame, stocks, factors, missing = load_returns(cfg.tickers, cfg.factor_map,
+                                                   req.testDays + req.horizon)
+    if not stocks:
+        raise HTTPException(status_code=422, detail="No usable stock price history.")
+    if not factors:
+        raise HTTPException(status_code=422, detail="No usable factor price history.")
+    try:
+        res = run_backtest(frame, stocks, factors, risk_window=req.horizon,
+                           signal_window=req.signalHorizon, rebalance=req.rebalance,
+                           cost_bps=req.costBps, test_days=req.testDays, min_longs=req.minLongs,
+                           max_weight=req.maxWeight, use_signal_gate=req.useSignalGate,
+                           borrow_bps=req.borrowBps, min_tstat=req.minTstat, max_longs=req.maxLongs)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    res.update({"missing": missing, "stocks": stocks, "factors": factors})
+    return _json_safe(res)
+
+
+class SaveBacktestRequest(BaseModel):
+    payload: dict
+    name: str = ""
+
+
+@app.post("/api/backtest/save")
+def save_backtest_ep(req: SaveBacktestRequest) -> dict:
+    """Persist a backtest result to the knowledge base. Returns its id."""
+    if not req.payload:
+        raise HTTPException(status_code=422, detail="No backtest payload to save.")
+    bid = store.save_backtest(req.payload, req.name)
+    return {"id": bid, "saved": True}
+
+
+@app.get("/api/backtests")
+def list_backtests_ep() -> list[dict]:
+    return store.list_backtests()
+
+
+@app.get("/api/backtests/{bid}")
+def load_backtest_ep(bid: str) -> dict:
+    payload = store.load_backtest(bid)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Saved backtest not found.")
+    return _json_safe(payload)
 
 
 # --- Gate 3 (AI exposure) — propose-and-approve, the only LLM decision ---------------------------

@@ -131,7 +131,7 @@ def run_screen(config: Config, make_charts: bool = True) -> ScreenResult:
         # Performance-Drivers variance decomposition — same window & factors as the regression, so
         # idiosyncratic share (= 1 − R²) matches the model's R² exactly. Groups built from THIS stock's
         # factor columns (sector varies per stock).
-        groups = config.groups_for_factors(factor_cols)
+        groups = config.groups_for_factors(factor_cols, config.custom_groups)
         variance = decompose_variance(stock_win, factor_win, groups)
         # Stability: recompute shares on the recent 6M window and compare to the 1Y — a share is only
         # trustworthy if it doesn't swing wildly between the two.

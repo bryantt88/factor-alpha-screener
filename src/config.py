@@ -55,7 +55,8 @@ FACTOR_GROUPS = {
 class Config:
     tickers: list[str]
     factor_set: str = "4factor"
-    time_horizon_days: int = 252
+    time_horizon_days: int = 252         # RISK window: betas/alpha/hedge ratios (stable → executable neutral)
+    signal_horizon_days: int = 63        # SIGNAL window: recent idiosyncratic trajectory (fast → fresh timing)
     corr_headline_days: int = 252
     rolling_corr_days: int = 63
     rolling_beta_days: int = 90
@@ -70,15 +71,25 @@ class Config:
     equipment_tickers: list = field(default_factory=list)   # fundamentals-only; no regression (boss)
     as_of_date: _dt.date = field(default_factory=_dt.date.today)
     output_dir: str | None = None
+    # --- custom / region-preset drivers (factor_set == 'custom') --------------------------------
+    # When factor_set == 'custom' the active factors come from these instead of FACTOR_SETS: the user
+    # (or a region preset) supplies logical-name -> proxy-ticker and, optionally, a group label per
+    # driver. This is what makes the model region-agnostic (US SPY/TLT vs Indonesia ^JKSE/IDR=X …).
+    custom_factors: dict = field(default_factory=dict)   # logical name -> proxy ticker
+    custom_groups: dict = field(default_factory=dict)    # logical name -> driver group label
 
     @property
     def factor_logical(self) -> list[str]:
         """Active logical factor names for the chosen mode, e.g. ['market','rates','oil','gas']."""
+        if self.factor_set == "custom":
+            return list(self.custom_factors)
         return FACTOR_SETS[self.factor_set]
 
     @property
     def factor_map(self) -> dict[str, str]:
         """logical name -> proxy ticker, restricted to the active mode (e.g. {'oil':'CL=F', ...})."""
+        if self.factor_set == "custom":
+            return dict(self.custom_factors)
         return {name: self.factor_proxies[name] for name in self.factor_logical}
 
     @property
@@ -87,13 +98,15 @@ class Config:
         return [c for c in ("oil", "gas") if c in self.factor_logical]
 
     @staticmethod
-    def groups_for_factors(factors) -> dict[str, list[str]]:
-        """Map a list of logical factor names -> {group: [factors]} via FACTOR_GROUPS (unknown factors
-        become their own capitalised group). Order-preserving. Used per-stock because 'sector' varies
-        by ticker, so the active factor list can differ across stocks."""
+    def groups_for_factors(factors, custom_groups=None) -> dict[str, list[str]]:
+        """Map a list of logical factor names -> {group: [factors]}. A custom driver's group (if the
+        run supplied one via `custom_groups`) wins, else FACTOR_GROUPS, else the factor's own
+        capitalised name. Order-preserving. Used per-stock because 'sector' varies by ticker, so the
+        active factor list can differ across stocks."""
+        custom_groups = custom_groups or {}
         groups: dict[str, list[str]] = {}
         for f in factors:
-            g = FACTOR_GROUPS.get(f, f.capitalize())
+            g = custom_groups.get(f) or FACTOR_GROUPS.get(f, f.capitalize())
             groups.setdefault(g, []).append(f)
         return groups
 
@@ -101,7 +114,7 @@ class Config:
     def driver_groups(self) -> dict[str, list[str]]:
         """Driver group -> the active SHARED logical factors composing it (excludes per-stock 'sector').
         Feeds the variance decomposition; callers pass a per-stock list when sector is present."""
-        return self.groups_for_factors(self.factor_logical)
+        return self.groups_for_factors(self.factor_logical, self.custom_groups)
 
     @property
     def use_sector(self) -> bool:
@@ -136,6 +149,9 @@ def load_config(path: str = "config.yaml", **overrides) -> Config:
         tickers=[t.upper() for t in (overrides.get("tickers") or [])],
         factor_set=overrides.get("factor_set", raw.get("factor_set_default", "4factor")),
         time_horizon_days=overrides.get("time_horizon_days", raw.get("time_horizon_days", 252)),
+        signal_horizon_days=(overrides.get("signal_horizon_days")
+                             if overrides.get("signal_horizon_days") is not None
+                             else raw.get("signal_horizon_days", 63)),
         corr_headline_days=raw.get("corr_headline_days", 252),
         rolling_corr_days=raw.get("rolling_corr_days", 63),
         rolling_beta_days=raw.get("rolling_beta_days", 90),
@@ -151,6 +167,8 @@ def load_config(path: str = "config.yaml", **overrides) -> Config:
         benchmark_map=raw.get("benchmark_map", {}),
         exclude_tickers=[t.upper() for t in raw.get("exclude_tickers", [])],
         equipment_tickers=[t.upper() for t in (overrides.get("equipment_tickers") or [])],
+        custom_factors=dict(overrides.get("custom_factors") or {}),
+        custom_groups=dict(overrides.get("custom_groups") or {}),
     )
     # Drop excluded names (e.g. GEV — existing position) before anything runs.
     if cfg.exclude_tickers:
@@ -160,6 +178,10 @@ def load_config(path: str = "config.yaml", **overrides) -> Config:
         cfg.as_of_date = overrides["as_of_date"]
     if overrides.get("output_dir") is not None:
         cfg.output_dir = overrides["output_dir"]
-    if cfg.factor_set not in FACTOR_SETS:
-        raise ValueError(f"factor_set must be one of {list(FACTOR_SETS)}, got {cfg.factor_set!r}")
+    if cfg.factor_set == "custom":
+        if not cfg.custom_factors:
+            raise ValueError("factor_set='custom' requires custom_factors {logical_name: ticker}")
+    elif cfg.factor_set not in FACTOR_SETS:
+        raise ValueError(f"factor_set must be 'custom' or one of {list(FACTOR_SETS)}, "
+                         f"got {cfg.factor_set!r}")
     return cfg

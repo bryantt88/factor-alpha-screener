@@ -1,7 +1,7 @@
-"""Platform / UI layer (docs/PLATFORM.md) — build-order step 5, framework-NEUTRAL until then.
+"""App-layer server helpers used by the API.
 
-Project decision: the web framework (Streamlit vs Reflex vs ...) is deliberately NOT chosen yet;
-it is locked at step 5, informed by real CLI usage. Whatever is chosen, it will IMPORT and call
-src.main.run_screen() and the same pipeline functions — the UI is a convenience layer, not a rewrite.
-Three pages: New Run, Results Dashboard, History / Knowledge Base.
+The interactive UI is the Next.js front-end in `web/` (served by FastAPI at one origin — see
+`src/api/server.py`). This package now holds only server-side helpers: `explain.py`, the optional
+Gemini "how to read" explainer that describes the computed numbers in plain language (it never
+invents any). The earlier Streamlit prototype has been removed.
 """

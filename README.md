@@ -1,5 +1,5 @@
 ---
-title: AI Power Screener
+title: Factor-Alpha Screener
 emoji: ⚡
 colorFrom: indigo
 colorTo: blue
@@ -8,62 +8,151 @@ app_port: 7860
 pinned: false
 ---
 
-# AI-Power Stack Screener
+# Factor-Alpha Screener
 
-A screening + regression tool for finding mid-to-large-cap, US-listed **AI-power-stack** equities — power generators and power/data-center equipment makers — that are (1) the right size, (2) genuinely exposed to AI data-center demand, (3) fundamentally sound, and (4) on a real *idiosyncratic* uptrend once commodity and market noise is stripped out.
+A driver-based equity research platform: it decomposes each stock's return into the part explained by
+common factors (market, sector, rates, commodities, style, FX…) and the part that is genuinely its
+**own story** — the idiosyncratic **α + ε** — then turns that into **actionable, market-neutral trade
+ideas** and lets you **backtest** them walk-forward.
 
-It is built around one core idea from the original mandate:
+> A stock can rise just because the market, its sector, or a commodity rose. We want the return a stock
+> earns **beyond what its factor exposures explain** — its own alpha. Strip the factors with a
+> regression; what's left (α + ε) is the stock's own trend. Own it, hedge the factors, and you hold the
+> alpha.
 
-> A power stock can rise just because oil and gas rose. We want the stocks that rise **by more than commodities alone can explain** — the ones with a genuine, structural AI tailwind. A rolling regression strips out the commodity (and market/rate) component; what's left — **alpha + residual** — is the stock's own trend.
+Works on any liquid market and any set of drivers (US out of the box; Indonesia and fully custom driver
+sets built in). Everything is **auditable and reproducible** — every number is computed or sourced,
+never fabricated.
 
-## What it does
+---
 
-You paste one or more tickers. Every ticker is run through **every gate** and scored on a scorecard (nothing is silently dropped — you see exactly which gates each name passes and fails). The regression runs on all of them, producing a set of informative charts and a ranked summary table, and the whole run is saved to a local knowledge base so you can revisit historical runs.
+## The three pillars
 
-## The four gates
+### ① Performance Drivers
+For each stock, an OLS regression + Shapley variance decomposition answers *"what is actually moving
+this stock, and how much is its own story?"* — splitting return variance into driver groups (Market,
+Rates, Energy, Style, Sector, Macro…) and the idiosyncratic remainder (`1 − R²`). Reads use
+collinearity-robust measures (correlation, grouped variance share) — never raw partial betas.
 
-| Gate | Question | How it's answered |
-|------|----------|-------------------|
-| 1. Size | Mid-to-large cap? | Deterministic — market cap vs floor (default $2B) |
-| 2. Fundamentals | Profitable, beating, sensibly valued? | Deterministic — a lean, decision-relevant metric set |
-| 3. AI exposure | Real, contracted data-center demand? | AI agent — sourced point-form summary + type classification |
-| 4. Idiosyncratic uptrend | Rising on its own merits, not commodity luck? | The regression — cumulative idiosyncratic return (α + ε) |
+### ② Trade Ideas
+The driver decomposition becomes a threshold-gated shortlist. Every name is categorised —
+**Rising on its own** (real, positive own-story alpha) · **Just riding factors** (up, but not its own) ·
+**Lagging its factors** (possible mean-reversion) · **No clear edge** — and the platform proposes:
+- **Directional longs** — names clearing the alpha-quality bar,
+- **Market-neutral pairs** — long a real-alpha name / short a same-factor "rider", matched hedge ratio,
+- **Factor-hedged book** — long the names, short factor-proxy ETFs sized to zero the net factor beta.
 
-## Quick start
+### ③ Backtesting
+A standalone **walk-forward** backtester (strictly no look-ahead) replays the exact live signal at each
+rebalance, builds the market-neutral book net of transaction + borrow costs, and reports the equity
+curve, **drawdown**, Sharpe, realised market beta, turnover, and more — against buy-hold benchmarks.
+Diversification floor, single-name cap, alpha-conviction bar, and rebalance cadence are all tunable;
+results save to a local knowledge base.
+
+Plus: **custom / region drivers** (any yfinance ticker), EDGAR fundamentals, and an optional
+**AI-exposure agent** (text only, every claim sourced).
+
+---
+
+## Run it locally
+
+The built front-end (`web/out`) is committed, so the whole app runs with **Python alone** — no Node
+required for the default path.
+
+**Prerequisites:** Python 3.12+. (Node 18+ only if you want to modify the front-end.)
 
 ```bash
-# 1. environment
-python -m venv .venv && source .venv/bin/activate   # or: uv venv / conda
+git clone <this-repo-url> && cd ai-power-screener
+
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 2. run the regression engine on a watchlist (built first, works standalone)
-python -m src.main --tickers VST CEG NRG VRT ETN --factor-set 4factor --horizon 252
-
-# 3. later: full scorecard + agent + knowledge base
+python -m uvicorn src.api.server:app --host 127.0.0.1 --port 8000
+# open http://localhost:8000
 ```
 
-## Documentation
+That serves the full app (UI + `/api`) at one origin. Tabs: **New Run** (score a basket) → **Results**
+(ranked read + Trade ideas) → **Backtest** (walk-forward lab) → **History** (saved runs & backtests).
 
-Read these in order. `docs/SPEC.md` is the source of truth for the whole design.
+**Command line (no web):**
+```bash
+python -m src.main --tickers VST CEG NRG VRT ETN --factor-set drivers --horizon 252
+```
 
-| File | Contents |
-|------|----------|
-| `CLAUDE.md` | Operating rules for Claude Code — read this every session |
-| `docs/SPEC.md` | Full design: architecture, gates, metrics, knowledge base, agent, repo layout, build order |
-| `docs/REGRESSION.md` | The regression math — formula, beta estimation, windows, the α + ε convention, both factor modes |
-| `docs/OUTPUTS.md` | The five outputs and how to make each one genuinely informative |
-| `docs/DATA.md` | Data sourcing — public-first, Refinitiv as a swappable one-time backend |
-| `docs/PLATFORM.md` | The website/UI layer — pages, user flow, factor toggle, results dashboard, approve loop, history browser |
-| `docs/UNIVERSE.md` | Domain context — the buckets, candidate names, and why some were ruled out |
+**Optional AI features** (the AI-exposure agent + the "how to read" explainer):
+```bash
+# either install the free `gemini` CLI (used as a $0 subprocess), or:
+export GEMINI_API_KEY=...           # uses the REST API path (headless / cloud)
+```
 
-## Build order (back-to-front)
+**Modifying the front-end** (rebuild the static export it serves):
+```bash
+cd web
+npm install
+NEXT_PUBLIC_API_BASE= npm run build   # -> web/out (same-origin production build)
+```
 
-1. **Regression engine** — standalone, on free public price data. The core.
-2. **Gates / scorecard** — wrap the engine.
-3. **Data layer** — fundamentals backend (public first, Refinitiv slot-in).
-4. **AI-exposure agent** — Stage 3, propose-and-approve with sources.
-5. **Knowledge base + UI** — the platform layer.
+**Dev mode with hot reload** (two servers):
+```bash
+python -m uvicorn src.api.server:app --port 8000     # terminal 1
+cd web && npm install && npm run dev                 # terminal 2 -> http://localhost:3000
+```
+(`web/.env.development` points the dev front-end at the :8000 API.)
 
-## Non-negotiable principle
+---
 
-The LLM/agent is used for **exactly one thing**: reading unstructured text (filings, press releases, earnings calls) to confirm AI exposure — and it must cite a source for every claim. Every *number* (market cap, margins, betas, returns) comes from real data or deterministic computation. No model ever fabricates a figure. See `CLAUDE.md`.
+## Configuration
+
+All knobs live in `config.yaml` — market-cap floor, regression windows (risk + signal horizons), factor
+proxies, driver groups, leverage flag, benchmark map, fundamentals backend. Nothing is hardcoded in
+scattered literals.
+
+## Repository layout
+
+```
+src/
+  api/            FastAPI server (serves web/out + /api) + JSON serialisation
+  config.py       config loader; factor sets, driver groups, custom drivers
+  data/           prices, market cap, fundamentals (EDGAR), sector, benchmark, industry
+  regression/     OLS engine (α, betas, HAC SEs), rolling stats, attribution, Shapley variance
+  gates/          size, fundamentals, trend, exposure
+  opportunity/    trade-idea engine (buckets, longs, pairs, factor-hedged book)
+  backtest/       vectorised walk-forward market-neutral backtester
+  agent/          Gemini client + AI-exposure agent (text only, sourced)
+  knowledge_base/ save / load runs and backtests
+  viz/            server-side charts
+  app/            explain.py — Gemini "how to read" (explains numbers, never invents)
+  main.py         CLI + run_screen orchestrator
+web/              Next.js front-end (built to web/out, served by FastAPI)
+docs/             design specs (regression math, outputs, data, universe)
+tests/            pytest suite
+config.yaml       all knobs
+```
+
+## Testing
+
+```bash
+python -m pytest tests/ -q      # offline, no network
+```
+
+## Deploy
+
+- **Local shareable link (Windows):** double-click `start-boss-link.bat` — starts the app + a free
+  Cloudflare quick tunnel (`*.trycloudflare.com`), no account or card needed.
+- **Docker / Hugging Face Space:** the `Dockerfile` runs FastAPI serving `web/out` + `/api` on port
+  7860 (the front-matter above configures the Space).
+- **Render:** `render.yaml` blueprint (set `GEMINI_API_KEY` as a secret).
+
+## Principles (non-negotiable)
+
+- **Never fabricate a number.** Every market cap, margin, beta, and return is computed or pulled; if it
+  can't be, it's marked `null`/`unverified` and surfaced — never guessed.
+- **The LLM confirms text, never numbers.** The agent only reads filings/news to confirm exposure, and
+  must cite a source for every claim.
+- **Idiosyncratic return = α + ε** (never bare residuals), reported as the compounded own-story path.
+- **No look-ahead in the backtest** — betas at each rebalance use trailing data only.
+
+## License
+
+Proprietary and confidential — see [LICENSE](LICENSE). All rights reserved.

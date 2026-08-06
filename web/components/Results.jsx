@@ -3,7 +3,7 @@ import { useState } from 'react';
 import LineChart from './LineChart';
 import ScatterChart from './ScatterChart';
 import DriversPanel from './Drivers';
-import { runExposure, getVerdict, getRelStrength, explainStock } from '@/lib/api';
+import { runExposure, getVerdict, explainStock } from '@/lib/api';
 import { pct, pctPts, pctPlain, num, money, verdictOf, alphaClass, alphaLabel } from '@/lib/format';
 
 const C_IDIO = '#14663A', C_RAW = '#8B98A8';
@@ -13,6 +13,7 @@ const STATUS_PILL = { pass: 'pass', fail: 'fail', flag: 'flag', unverified: 'neu
 const FUND_LABEL = {
   ebitda_margin: 'EBITDA margin (+ YoY)', net_debt_to_ebitda: 'Net debt / EBITDA',
   earnings_surprise: 'EPS surprise', valuation: 'EV / EBITDA',
+  revenue: 'Revenue (+ YoY)', net_income: 'Net income (+ YoY)', pe: 'P/E',
 };
 
 function Legend({ items }) {
@@ -42,25 +43,32 @@ function Section({ n, title, tag, sub, children }) {
   );
 }
 
+// Category colour — SAME mapping the Opportunity "per-stock read" uses, so the two views always agree.
+const BUCKET_PILL = {
+  'Rising on its own': 'pass', 'Lagging its factors': 'flag',
+  'Just riding factors': 'fail', 'No clear edge': 'neutral',
+};
+
 // ---------- ranked summary (click a row to open its report) ----------
-function Summary({ stocks, gates, sel, onSelect }) {
+function Summary({ stocks, gates, buckets, sel, onSelect }) {
   return (
     <div className="summary">
       <div className="srow head">
-        <div className="s-rank">#</div><div>Ticker</div><div>Verdict</div>
+        <div className="s-rank">#</div><div>Ticker</div><div>Read</div>
         <div style={{ textAlign: 'right' }}>Confidence</div>
         <div style={{ textAlign: 'right' }}>Info ratio</div>
-        <div style={{ textAlign: 'right' }}>Idiosyncr.</div>
+        <div style={{ textAlign: 'right' }} title="Full-period own-story (α+ε) return — the basis for the Read">Own-story</div>
         <div style={{ textAlign: 'right' }}>Mkt cap</div>
       </div>
       {stocks.map((s, i) => {
-        const v = verdictOf(s.trackShort) || 'neutral';
+        const bucket = buckets[s.ticker] || s.trackShort;   // same category as the per-stock read
+        const v = BUCKET_PILL[bucket] || 'neutral';
         const mc = gates[s.ticker]?.size?.marketCap;
         return (
           <div key={s.ticker} className={`srow ${sel === s.ticker ? 'sel' : ''}`} onClick={() => onSelect(s.ticker)}>
             <div className="s-rank">{i + 1}</div>
             <div className="s-tk">{s.ticker}</div>
-            <div className="s-verdict"><span className={`s-dot ${v}`} />{s.trackShort}</div>
+            <div className="s-verdict"><span className={`s-dot ${v}`} />{bucket}</div>
             <div style={{ textAlign: 'right' }}><span className={`pill ${alphaClass(s.metrics)}`}>{alphaLabel(s.metrics)}</span></div>
             <div className="s-num">{num(s.metrics.informationRatio)}</div>
             <div className="s-num">{pct(s.metrics.idioEndpoint)}</div>
@@ -79,28 +87,22 @@ const GRADE_LABEL = { strong: 'Strong', moderate: 'Moderate', low: 'Low', none: 
 function ExposureFlow({ ticker, config, geminiAvailable }) {
   const [prop, setProp] = useState(null);
   const [loading, setLoading] = useState('');       // '' | 'news' | 'web'
-  const [type, setType] = useState('');
   const [grade, setGrade] = useState('');           // final grade (AI's, or overridden)
   const [verdict, setVerdict] = useState(null);
-  const [rel, setRel] = useState(null);
   const [err, setErr] = useState('');
 
   async function run(deep) {
-    setLoading(deep ? 'web' : 'news'); setErr(''); setVerdict(null); setRel(null);
+    setLoading(deep ? 'web' : 'news'); setErr(''); setVerdict(null);
     try {
       const p = await runExposure(ticker, deep);
-      setProp(p); setType(p.type); setGrade(p.grade);
+      setProp(p); setGrade(p.grade);
     } catch (e) { setErr(String(e.message || e)); }
     finally { setLoading(''); }
   }
   async function decide(d) {
     try {
-      const v = await getVerdict({ grade, type, error: prop.error, decision: d });
+      const v = await getVerdict({ grade, type: prop.type, error: prop.error, decision: d });
       setVerdict(v);
-      if (d === 'approved') {
-        const r = await getRelStrength({ ticker, type, factorSet: config.factorSet, horizon: config.horizon });
-        setRel(r);
-      }
     } catch (e) { setErr(String(e.message || e)); }
   }
 
@@ -139,19 +141,11 @@ function ExposureFlow({ ticker, config, geminiAvailable }) {
             </>
           ) : <div className="caption">No sourced evidence bullets — the grade reflects the agent's read of the business{prop.mode === 'news' ? ' (try Deep web search for fresh sources)' : ''}.</div>}
 
-          <div className="row2" style={{ maxWidth: 520, marginTop: 8 }}>
-            <div className="field">
-              <label>Final grade (you decide — overrides the AI)</label>
-              <select className="select" value={grade} onChange={(e) => setGrade(e.target.value)}>
-                {grades.map((g) => <option key={g} value={g}>{GRADE_LABEL[g] || g}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Type (benchmark for relative strength)</label>
-              <select className="select" value={type} onChange={(e) => setType(e.target.value)}>
-                {(prop.types || []).concat(prop.types.includes(type) ? [] : [type]).map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </div>
+          <div className="field" style={{ maxWidth: 260, marginTop: 8 }}>
+            <label>Final grade (you decide — overrides the AI)</label>
+            <select className="select" value={grade} onChange={(e) => setGrade(e.target.value)}>
+              {grades.map((g) => <option key={g} value={g}>{GRADE_LABEL[g] || g}</option>)}
+            </select>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn" onClick={() => decide('approved')}>✅ Approve ({GRADE_LABEL[grade] || grade})</button>
@@ -163,14 +157,6 @@ function ExposureFlow({ ticker, config, geminiAvailable }) {
               <span className={`pill ${STATUS_PILL[verdict.status] || 'neutral'}`}>{verdict.status}</span> — {verdict.note}
             </div>
           )}
-          {rel && rel.series && (
-            <div style={{ marginTop: 12 }}>
-              <LineChart dates={rel.series.dates} series={[{ name: `${ticker} − ${rel.benchmark}`, color: C_IDIO, values: rel.series.values }]}
-                yLabel={`excess vs ${rel.benchmark} (pts)`} unit="" height={260} />
-              <div className="caption">Rising = beating its sector benchmark ({rel.benchmark}); above 0 = an AI premium over the sector tide.</div>
-            </div>
-          )}
-          {rel && !rel.series && <div className="caption">{rel.note}</div>}
         </div>
       )}
       {prop && prop.error && <div className="err" style={{ marginTop: 10 }}>Agent error: {prop.error}</div>}
@@ -243,8 +229,11 @@ function Diagnostics({ s, config }) {
                 <tr key={f}><td>{f}</td><td className="mono">{num(s.betas[f])}</td><td className="mono">{num(s.pvalues[f], 3)}</td></tr>
               ))}</tbody>
             </table>
-            <div className="caption">These are <b>partial</b> betas (each factor holding the others fixed) — the
-              multivariate coefficients used inside the driver split, <b>not</b> the plain market beta shown up top.</div>
+            <div className="callout" style={{ marginTop: 8 }}>⚠ These <b>partial</b> betas are a <b>calculation input, not a readable exposure.</b> When
+              factors overlap (especially the style ETFs), a beta can inflate or flip sign — a stock can show β −2.5 on low-vol while
+              its actual <i>correlation</i> with low-vol is ~0. To read how the stock relates to a factor, use the <b>correlation</b> in
+              the factor table above; for what drives its risk, use the grouped <b>variance shares</b> (collinearity-robust). The plain
+              market beta shown up top is also a simple univariate beta, not one of these partials.</div>
           </div>
         )}
         {tab === 'attr' && (
@@ -256,7 +245,7 @@ function Diagnostics({ s, config }) {
 }
 
 // ---------- the full top-down report for one ticker ----------
-function StockReport({ s, config, gate, geminiAvailable, driversCaveat }) {
+function StockReport({ s, config, gate, geminiAvailable, driversCaveat, bucket, readNote }) {
   const [expl, setExpl] = useState('');
   const [explLoading, setExplLoading] = useState(false);
   const m = s.metrics;
@@ -277,10 +266,10 @@ function StockReport({ s, config, gate, geminiAvailable, driversCaveat }) {
         <div className="id">
           <div className="tk">{s.ticker}</div>
           <div className="pills">
-            <span className={`pill ${verdictOf(s.trackShort) || 'neutral'}`}>{s.track}</span>
+            <span className={`pill ${BUCKET_PILL[bucket] || 'neutral'}`}>{bucket || s.trackShort}</span>
             <span className={`pill ${alphaClass(m)}`}>{alphaLabel(m)}</span>
           </div>
-          <div className="vline">{s.verdictLine}</div>
+          <div className="vline">{readNote || s.verdictLine}</div>
         </div>
         <div className="hstats">
           <div className="hstat"><div className="lbl">Market cap</div><div className="v">{money(size?.marketCap)}</div></div>
@@ -320,8 +309,7 @@ function StockReport({ s, config, gate, geminiAvailable, driversCaveat }) {
       {/* ③ Financials */}
       <Section n="③" title="Financials"
         tag={fund && <span className={`pill ${STATUS_PILL[fund.overall] || 'neutral'}`}>{fund.overall}</span>}
-        sub={fund?.basis ? `Basis: ${fund.basis} · from SEC filings (never fabricated — unpullable fields marked unverified).`
-          : 'From SEC filings (never fabricated — unpullable fields marked unverified).'}>
+        sub={`${fund?.basis ? `Basis: ${fund.basis} · ` : ''}from SEC filings${fund?.industry ? ` · multiples vs ${fund.industry.name} avg (${fund.industry.source})` : ''}. Never fabricated — unpullable fields marked unverified.`}>
         {fund ? (
           <div>
             {Object.entries(fund.metrics).map(([k, mv]) => (
@@ -356,13 +344,37 @@ function StockReport({ s, config, gate, geminiAvailable, driversCaveat }) {
 export default function Results({ data, geminiAvailable }) {
   const [sel, setSel] = useState(data.stocks[0]?.ticker);
   const selected = data.stocks.find((s) => s.ticker === sel) || data.stocks[0];
+  const readByTicker = Object.fromEntries((data.opportunity?.reads || []).map((r) => [r.ticker, r]));
+  const selRead = selected ? readByTicker[selected.ticker] : null;
 
   return (
     <>
       <div className="eyebrow">Ranked screen · {data.stocks.length} names</div>
-      <Summary stocks={data.stocks} gates={data.gates} sel={selected?.ticker} onSelect={setSel} />
-      <div className="caption">Ranked by <b>information ratio</b> (own-story alpha per unit of idiosyncratic risk).
-        Confidence: <b>Real</b> · <b>Not proven</b> · <b>Likely luck</b>. Click a name to open its full report. New here? See the <b>Glossary</b> tab.</div>
+      <Summary stocks={data.stocks} gates={data.gates}
+        buckets={Object.fromEntries(Object.entries(readByTicker).map(([k, r]) => [k, r.bucket]))}
+        sel={selected?.ticker} onSelect={setSel} />
+      <div className="caption">This is the <b>per-stock read for every name</b> — ranked by <b>information ratio</b>, best first.
+        (The <b>Trade ideas</b> panel above is just the actionable shortlist drawn from these.) Click a name to open its full report.</div>
+      <details className="diag" style={{ marginTop: 6 }}>
+        <summary>How is this sorted & categorised? (click to expand)</summary>
+        <div className="diagbody" style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <p><b>Sorted by — Information Ratio (IR):</b> own-story return per unit of own-story risk (annualised α ÷ idiosyncratic vol).
+            Higher = a steadier, higher-quality own-story trend. Ties sink to the bottom if IR can't be computed.</p>
+          <p><b>Read (category) — decided over the FULL period</b> by two things: the sign of the <i>own-story</i> return (α+ε, after
+            stripping market/sector/commodity) and whether that α is <i>statistically real</i> (its t-stat):</p>
+          <ul style={{ margin: '4px 0' }}>
+            <li><span className="pill pass">Rising on its own</span> — own-story <b>up</b> AND real (t ≥ 2). A candidate long.</li>
+            <li><span className="pill fail">Just riding factors</span> — own-story up, but <b>not</b> statistically real (t &lt; 2) — the gain is mostly the market/sector/commodity, not the stock. Fade.</li>
+            <li><span className="pill flag">Lagging its factors</span> — own-story <b>down</b> while the stock has real factor exposure — a possible mean-reversion bounce.</li>
+            <li><span className="pill neutral">No clear edge</span> — own-story flat; the move is basically factor beta.</li>
+          </ul>
+          <p><b>Confidence</b> is the same t-stat, named: <b>Real</b> (t ≥ 2) · <b>Not proven</b> (t 1–2) · <b>Likely luck</b> (t &lt; 1).
+            So a name can be “Just riding factors” yet still show “Not proven” — it’s up, just not <i>provably</i> on its own.</p>
+          <p className="caption" style={{ margin: 0 }}>⏱ The Read judges the <b>whole period</b>. A name can be “Rising on its own” over the year and still be
+            <b> down recently</b> — e.g. Own-story +1065% for the year but −24% in the last quarter. That's a normal pullback in a strong
+            uptrend, not a contradiction; the recent move shows as a <b>recent ▲/▼</b> tag on its trade card.</p>
+        </div>
+      </details>
       {data.skipped.length > 0 && (
         <div className="caption">Skipped: {data.skipped.map((x) => `${x.ticker} (${x.reason})`).join('; ')}</div>
       )}
@@ -373,7 +385,8 @@ export default function Results({ data, geminiAvailable }) {
       {selected && (
         <StockReport key={selected.ticker} s={selected} config={data.config}
           gate={data.gates[selected.ticker]} geminiAvailable={geminiAvailable}
-          driversCaveat={data.caveats.driversModeCaveat} />
+          driversCaveat={data.caveats.driversModeCaveat}
+          bucket={selRead?.bucket} readNote={selRead?.note} />
       )}
     </>
   );

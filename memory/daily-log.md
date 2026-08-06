@@ -495,3 +495,148 @@ Energy stays its OWN group (mandate); Shapley/LMG for the variance split; ETF pr
   every field the UI reads; sector resolved to "Sector (XLI)" for VRT). Servers stopped at session end.
 - **NOT done:** the full vertical-card reframe (dropping the top Gate 1/2/3 strip for stacked 🔴/🟡/🟢
   cards) — Drivers is the primary tab but the gate strip remains. That's the optional next UI step.
+
+## 2026-08-04 — top-down UI rebuild, beta/return fixes, graded AI exposure, financials + Damodaran, DEPLOYED
+Big multi-feature window (Bryant iterating toward handing it to his boss). Everything verified live via
+Playwright screenshots against the running single-service app.
+- **Top-down UI (the vertical-card vision — now DONE).** `web/components/Results.jsx` fully rebuilt:
+  ranked summary (click a name) → header band → ① Performance Drivers → ② Size & Risk → ③ Financials →
+  ④ AI Exposure → a collapsed **Diagnostics** drawer (regression fit + detailed attribution). The top
+  Gate 1/2/3 strip and the per-stock chart tabs are gone. `globals.css` → institutional light
+  "research-deck" theme (navy accent, firm corners, tabular numerals). Default factor mode = `drivers`;
+  ranked by information ratio.
+- **Beta fix (Bryant: "AAPL beta 0.1 is sus").** Header + Size&Risk now show `reg.simple_market_beta`
+  (univariate 1-yr), NOT the multivariate PARTIAL beta — in drivers mode the partial market beta inflates
+  from collinearity with sector/style (AAPL 0.14 partial vs 0.78 simple; NVDA 4.96 vs 1.88). `engine.py`
+  gained `annualized_volatility` + `max_drawdown` for the Size&Risk card. Partial betas live only in the
+  Diagnostics regression-fit table, explicitly labelled "partial".
+- **Return Bridge (Bryant: "where does the idiosyncratic return come from?").** `Drivers.jsx` shows a
+  2-bar bridge: **Raw return vs Own-story (idiosyncratic), both COMPOUNDED** = the exact header numbers.
+  Removed all additive numbers from the main view (they didn't reconcile → "which number do I trust");
+  the additive per-factor attribution is quarantined in Diagnostics. Rationale: in drivers mode the 12
+  collinear factors produce huge offsetting return slices (market +90 / style −92) — useless to show.
+- **Risk-vs-return relabel (Bryant: "idio should be 48% × raw").** The 48% is `1−adjR²` = idiosyncratic
+  VARIANCE share (risk); the +63% is the idiosyncratic RETURN — different axes, don't multiply. Renamed
+  the stat card to "Own share of risk" and the bridge to "Own-story return", with a caption saying so.
+- **Removed the Decoupling tab** (confusing) and the **relative-strength "Type" picker** (redundant with
+  the regression's idiosyncratic read; it forced you through the AI agent first).
+- **Explainer** (`app/explain.py`) rewritten to walk the WHOLE report (verdict/confidence → drivers →
+  size&risk → financials → bottom line, one paragraph); fed the gate (size+fundamentals); beta labelling
+  fixed (simple = "market beta", multivariate = "partial beta"); compounded-only.
+- **AI exposure graded.** `agent/exposure_agent.py` now grades **Strong/Moderate/Low/None** (was
+  contracted/aspirational/none) — structural product demand counts, not only signed PPAs (fixes MU
+  under-grading). Human approves or overrides the grade; `gates/exposure.py` maps final grade → verdict
+  (strong/moderate=pass, low=flag, none=fail). **Gemini web search WORKS** now via `call_gemini(yolo=True)`
+  → google_search grounding (the old "no web search in this env" note is STALE). UI: quick news grade
+  (~25s) + a "Deep web search (~2min)" button. Verified: MU → Strong with real HBM/Nvidia sources.
+- **Gemini dual transport** (`agent/gemini_client.py`): if `GEMINI_API_KEY`/`GOOGLE_API_KEY` set → REST
+  API (same gemini-2.5-pro, web search via google_search tool); else local CLI. Enables cloud.
+- **Financials additions.** `data/fundamentals/edgar.py` + `base.py` + `gates/fundamentals.py`: net income
+  (TTM via `_NI_SYNS` NetIncomeLoss→ProfitLoss, YTD-differenced like rev/EBITDA), `net_income_yoy`,
+  `revenue_yoy`, `pe_ratio` (LIVE mktcap ÷ TTM net income). New info rows in the Financials section.
+- **Industry benchmark (Damodaran).** `data/industry.py` — REAL Damodaran Jan-2026 averages (EV/EBITDA,
+  P/E, EBITDA & net margin) for 16 industries, fetched from pages.stern.nyu.edu (NOT recalled). Each stock
+  keyword-mapped from its yfinance industry string → Damodaran industry. `gates/fundamentals.py` compares
+  EV/EBITDA + P/E vs the industry avg (flags "rich" if above), appends industry margin context; replaced
+  the old "own 3yr median". Source cited in the UI. GOOGL→Software(Internet), NEE→Utility, VST→Power,
+  ETN→Electrical Equipment. Unmapped → graceful fallback, never faked.
+- **Deployment.** Made it ONE service: `next.config.mjs` `output:'export'` → `web/out`; `api.js` BASE=''
+  (same origin); `server.py` mounts `StaticFiles(web/out)`; `web/.env.development` for the dev split.
+  Requirements gained fastapi/uvicorn/pydantic. Tried cloud: GitHub repo `bryantt88/ai-power-screener`
+  (private) created + pushed; HF Space `bryantt888/ai-power-screener` (public, docker) created — but HF
+  free CPU quota = 0 without a card (Render same). User refused card → shipped a **Cloudflare quick
+  tunnel** from the PC instead: `cloudflared` installed to `~/bin`, `start-boss-link.bat` at repo root
+  starts uvicorn :8000 + the tunnel → a random `*.trycloudflare.com` boss link. GitHub + HF copies are now
+  BEHIND the local version. 19/19 tests pass throughout.
+
+## 2026-08-04 — India exit-timing analysis (standalone side deliverable, `india-exit-analysis/`)
+Separate task from the screener: find the best exit timing/strategy for the boss's holding in **GS Funds
+SICAV – India Equity Portfolio (LU0333810181)**. Built isolated (user: "don't put it in the platform").
+Deliverable = both a backtested signal model AND a report. Discipline throughout: never fabricate, latest
+data (as-of 2026-07-31), validate every source, defensible to a PM, and DON'T over-anchor on the drivers
+method — run a bake-off.
+- **Data** (`fetch_data.py`) → 15 daily series to `data/*.csv` (INDA, SMIN, EEM, USDINR=INR=X, BRENT=BZ=F,
+  WTI=CL=F, TLT, SPY, NIFTY=^NSEI, DXY, GOLD, ^VIX, ^INDIAVIX, EPI, ^TNX) to 2026-07-31. FII from NSDL
+  (GitHub MrChartist/fii-dii-data) → `FII_monthly.csv` (255 months, cross-checked to-the-crore vs Govt PDF).
+- **Fund** = near-tracker of MSCI India IMI (USD): beta **0.93**, TE ~4%, bank-heavy (Financials 31%),
+  **26% small-cap**, Energy 3%. Trailing yr −12.4%, YTD −7.9%. Proxy **0.74·INDA + 0.26·SMIN** validated
+  (`validate_proxy.py`) at **corr 0.988**, 4.6pt error vs fact-sheet yearly returns.
+- **Factor scorecard** (`phase1c_factor_table.py`, WEEKLY corr — daily FX is non-sync, a fixed artifact):
+  structural (trust always) = EEM +0.69, SPY +0.57, USD/INR −0.47, India VIX −0.44; **oil = regime-flip**
+  (6M −0.63 / full +0.07 — positive 79% of history; only trust when recent corr is negative, as now).
+- **Backtest** (`phase3_clean.py`, 2013-02→2026-07, 702wk, weekly, signals lagged 1wk, cash=0%, evaluated
+  from `df.index[53]` so all signals defined): BuyHold +156%/7.2%/−46%/0.46 · **`Combine_OR` +176%/7.8%/
+  −26%/0.59** · `VoteScaled` (phased) +139%/6.7%/−26%/0.55. Combine_OR beats BuyHold on every metric,
+  every sub-window; Sharpe 0.52–0.68 across param nudges (not curve-fit).
+  - **`Combine_OR`**: exit only when proxy < 200-day AND ≥2 of 4 macro headwinds fire — rupee falling
+    >1.5%/13wk · oil rising + regime-on · India VIX > 1yr-70th-pctile · EEM < 200-day. `VoteScaled` scales
+    100→66→33→0 as warnings stack.
+- **Tested & REJECTED** (honest, not assumed): FII flows *hurt* (Sharpe 0.60→0.47; FII-alone 0.15 — foreign
+  selling is coincident/lagging, dumps you at the bottom) · earnings-season · sell-in-May · froth
+  (exit-into-strength) · valuation (public P/E stale/gated — needs Refinitiv). **Earnings weeks are NOT more
+  volatile**: calendar 0.81–0.94× full/5y/3y/2y, real-earnings-dates 0.98×, latest Jul-2026 week calm.
+  "Earnings is a non-factor" — settled a long user thread on whether earnings drive the market (they don't;
+  macro does).
+- **`phase9_drivers.py`** — platform-style driver decomposition on INDA reusing `src/regression/engine.py`
+  + `src/regression/variance.py` (Shapley/LMG), India's OWN factors (SPY/EEM/USDINR/WTI/TLT), weekly.
+  FULL: R² 0.56, alpha +23.8%/yr (t+1.45, **ns**), IR +0.85; drivers EM 27% / Global 15% / Rupee 13% /
+  Oil 0.4% / **Idio 44%**. Last 2Y: **alpha −33.9%/yr, IR −1.46** (own-story a DRAG). Last 1Y: **Rupee
+  17.6% (#1 driver), Oil 13.7% (re-armed from 0.4%), Idio 41.5%**, alpha ns. KEY: **alpha never
+  significant, negative last 2yr** → quantifies "alpha-less/negative tracker". (Had a cp1252 print crash on
+  the em-dash group name + U+2212 note; fixed by renaming group to "Currency (rupee)" + `PYTHONIOENCODING=utf-8`.)
+- **`phase10_volatility.py`** — "is the volatility worth the reward?" INDA vs 11 peer country/region ETFs
+  (SPY/EEM/MCHI/EWZ/EWY/EWT/EWW/EZA/EWJ/EWG/EWU), all USD total-return, weekly, fetched fresh. Metrics:
+  CAGR, ann vol, Ret/Vol (rf=0), MaxDD, over full/5y/3y/1y. **Finding reframed the question**: India's vol
+  (~15–19%) is **mid-pack, even below most peers recently — NOT the problem**. The problem is **reward-per-
+  risk is near the bottom**: full-history Ret/Vol **+0.28 (#7/12)**, and **11th/11th/dead-last over 5y/3y/1y**.
+  Last 1yr India **−5.5% vs EM-broad +36%** at similar risk; MaxDD −41% full. → the volatility hasn't paid;
+  opportunity cost quantified. Dovetails with phase9's negative idiosyncratic return.
+- **Report** — `build_report.py` generates `report.html` (research-note CSS + matplotlib charts as base64) →
+  `report.pdf` (6pp) via headless Chromium (`scratchpad/html_to_pdf.js`, Playwright `page.pdf` A4). Replaced
+  the earlier ugly matplotlib `make_report.py` after user: "the report is so bad… export some pdf skills".
+  `MEMO.md` = concise text report (results + backtest + point-form quali + "when to exit"). `FINDINGS.md` =
+  full record. `verify_all.py` = single-source-of-truth recompute of every headline number.
+- **Strategic thesis** (integrating boss's cost-benefit reasoning): today's signal = HOLD (only 1/5 warnings,
+  FII reversing, calm) — BUT the strategic call is a **committed EXIT timed on the drivers**: India is a
+  lagging, alpha-less tracker whose ordinary volatility is unrewarded; downside tails (US-India tariffs,
+  Iran/oil, EM risk-off, FII) are systematic/un-diversifiable. Not "if" but "when".
+- **NEXT:** fold the phase9 driver panel + phase10 peer risk/reward table into `report.pdf` as the two
+  "why exit" exhibits (user asked at end of window; awaiting go-ahead).
+
+## 2026-08-05 — India exit reframed to "exit for good"; C1 driver site rebuilt (z-scores + Monte Carlo); C2 catalysts sourced
+- **Mandate clarified (boss Steven + Bryant):** the exit is DECIDED — leaving the fund for good. The analysis
+  only TIMES the window (benefit-cost / opportunity-cost; India lagged 2-3yr, vol unrewarded, any adverse event
+  drags the whole market). Four conclusions: C1 drivers→timing, C2 catalysts, C3 peers, C4 wait-or-go (folded into C2).
+- **Data:** refreshed to 2026-08-04; added India-rates driver `INDGILT` (SBI 10yr G-Sec ETF `SETF10GILT.NS`, INR,
+  isolates duration, hist from 2016); Brent now primary oil. Every series re-verified vs a fresh live pull (user
+  distrust) — all match. SPY "discrepancy" = user saw the S&P500 INDEX (^GSPC ~7736); the model uses the SPY ETF
+  (~771 = index÷10). Both correct; site now labels it.
+- **C1 rebuilt** (`drivers_analysis.py` → `drivers_output.json`; `build_site.py` + `_theme.css` → `site/index.html`):
+  per-driver **z-scores** (level vs 13wk mean/σ — replaces the percentile that a trending driver like USD/INR fools),
+  **Composite Macro-Stress Index** (driver z's weighted by Shapley variance share), **block-bootstrap Monte Carlo**
+  (10k paths, 13/26wk). Design matches the platform (navy, numbered sections, inline SVG; matplotlib dropped as
+  "burem"). Iterated to **decision-first, point-form** per user: SELL verdict + reason bullets on top; **correlation-
+  first** driver table (dropped "this week" + CI/p jargon); Macro Composite "sell zone" with data bullets; Monte
+  Carlo enlarged full-width with p5/median/p95 + worse/better-off split. **UTF-8 `<meta charset>` fix** (and forced
+  utf-8 CSS read) killed mojibake. Served LOCALLY (`open-india-site.bat` → http://localhost:8137), not the Artifact.
+- **Method verified** (`recheck_variance.py`): Shapley/LMG is the best driver-breakdown method — independent
+  from-scratch LMG matches `drivers_output.json` to the decimal; Johnson Relative-Weights agrees ±1-2pp;
+  order-dependent/sequential rejected (SPY 7%↔52% by order); marginal R² double-counts (179%). Weights are
+  window-sensitive (oil 25% 1Y → 1% full); user kept 1Y (current regime, oil is a live Iran risk), disclosed.
+- **C1 read (as-of 2026-08-04):** stress −0.99σ (calmest ~7% of weeks), fund +1.7σ stretched, all drivers tailwinds
+  → **exit into strength now**. Honest caveats: not a called top (fund tends to drift higher short-term when this
+  stretched); case rests on asymmetry + opportunity cost, not predicting a fall. Variance (1Y): rupee 15/oil 15/
+  global 13/EM 13/rates 3, idio 38%.
+- **C2 catalysts (live web search, all sourced):** MSCI review announce **12 Aug** / effective **31 Aug**,
+  ~$2.3-3.2B passive inflow IF India weight rises (JM Financial); **RBI held 5.25% neutral** (5 Aug, done);
+  **Iran / Strait of Hormuz** = biggest, two-sided tail (Aug-3 US-Iran deal optimism eased oil → why oil z is a
+  tailwind now; strait still mostly closed, fragile); **Gen-Z protests** + ~40% graduate unemployment (CNBC), fiscal
+  risk is forward (budget still on its 4.3% consolidation path); **Q1 FY27 earnings** soft profits (HDFC Bank rev
+  ~−11% YoY, Axis strong); **FII** net −$27.2B YTD but Jun-Jul turned positive ("worst may be over").
+- **Wait-or-go (C4) verdict — SELL NOW, don't wait for 12 Aug:** the MSCI money lands 31-Aug, so "waiting for MSCI"
+  is a ~3.5-week hold = exactly the window C1 showed has no reliable edge + a real downside tail. The inflow is
+  conditional (India's EM weight has been FALLING), mostly priced (estimates public since June), and chases the
+  added names (Ather/SAIL), not this bank-heavy fund. Also answered user's "hold into the announcement?" — the
+  anticipation premium accrues to candidate stocks, not the broad fund; no fund-level edge measured. Optional
+  phased exit: bulk now + one small tranche into any late-Aug MSCI pop.
+- **NEXT:** build C2 into the site (catalyst calendar + wait-or-go verdict); optional MSCI-announcement event study; then C3 peer table.

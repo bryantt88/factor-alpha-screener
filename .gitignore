@@ -37,3 +37,15 @@ joywin-sec-financials/
 Thumbs.db
 .idea/
 .vscode/
+
+# saved backtest results (local KB)
+backtests/
+
+# Private, separate deliverable — a personal GS India fund exit analysis (NOT part of this project)
+india-exit-analysis/
+MFU_*.pdf
+msci-india-*.pdf
+open-india-site.bat
+
+# Internal dev / assistant working memory (kept local; contains private India narrative)
+memory/

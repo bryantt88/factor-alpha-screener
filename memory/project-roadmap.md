@@ -45,21 +45,57 @@ a ranked detail table in `runs/<as_of>_<factor_set>/`.
   sample** (63d) = decoupling-trajectory diagnostic only. Never a 252d rolling window on a 252d sample.
 - Factor modes user-toggled (4factor default | commodity); **futures not ETFs**; never WTI+Brent.
 - **Never fabricate numbers** → null/unverified. LLM confirms **text only** (Gate 3).
-- UI framework **MIGRATED to React/Next.js + FastAPI** (2026-07-23; superseded the original Streamlit
-  choice). Backend `src/api/` (FastAPI wraps run_screen → JSON); frontend `web/` (Next.js 14). Streamlit
-  (`src/app/ui.py`) retired but kept as reference. Pipeline (src/) stays framework-agnostic — the API
-  and Streamlit both call the same run_screen. Run: `uvicorn src.api.server:app --port 8000` + `cd web
-  && npm run dev` → http://localhost:3000.
+- UI framework **React/Next.js + FastAPI** (2026-07-23). Streamlit (`src/app/ui.py`) retired.
+- **Single-service deploy (2026-08-04):** `next build` with `output:'export'` → `web/out`; FastAPI
+  mounts it at `/` and serves `/api` at the same origin (`api.js` BASE=''). One URL, no CORS. This is the
+  deployable artifact.
+- **Hosting = local + Cloudflare tunnel (2026-08-04, LOCKED for now).** Render + Hugging Face both gate
+  their FREE tier behind a credit card (HF free CPU quota = 0 without one); user refused a card. So the
+  boss opens a `*.trycloudflare.com` link served from the PC (`start-boss-link.bat`). Trade-off accepted:
+  live only while the PC + launcher run, and the URL changes each launch. Cloud can be revived by adding a
+  card on HF/Render — the `GEMINI_API_KEY` REST path is already wired for that.
+- **Beta shown = simple 1-yr market beta**, never the partial (partials inflate in drivers mode via
+  collinearity). **Idiosyncratic returns = compounded everywhere** (additive attribution lives only in the
+  Diagnostics drawer). **AI exposure = graded Strong/Moderate/Low/None**, human-final. **Industry benchmark
+  = Damodaran (real, cited, yearly refresh)**, not own-median. Gemini web search WORKS (`yolo`/google_search).
 - Gemini "how to read" button = optional, on-demand explainer via `src/app/explain.py` +
   `src/agent/gemini_client.py`. LLM only EXPLAINS computed numbers, never invents them.
 - Gate-3 agent = gemini CLI $0 subprocess (GCP project `gemini-cli-501907`), paid HTTP fallback rung.
 
-## Status: v2 Performance-Drivers Phases 1–3 BUILT (2026-07-29) — JPM-style variance panel live end to end.
-Platform: `uvicorn src.api.server:app --port 8000` + `cd web && npm run dev` → http://localhost:3000.
-v1.1 base still intact (React/FastAPI, all 7 Bryant pts, Gate-2 TTM Yahoo-matched, alpha-significance,
-boss mode, EDGAR fundamentals, opt-in KB, Glossary). NEW this session — a `drivers` factor mode that
-renders a Shapley/LMG variance decomposition (Market/Rates/Energy/Sector/Style/Macro/Idiosyncratic,
-sums to 100%) + a 6M/1Y factor-correlation table, as the first/default per-stock tab. 19/19 tests pass.
+## Side deliverable — India fund exit-timing analysis (`india-exit-analysis/`, standalone, NOT in the platform)
+Boss's holding: **GS Funds SICAV – India Equity Portfolio (LU0333810181)**. **Mandate reframed 2026-08-05: the
+exit is DECIDED (leaving for good); the analysis only TIMES the window** (benefit-cost / opportunity-cost). Four
+conclusions: C1 drivers→timing, C2 catalysts, C3 peers, C4 wait-or-go (folded into C2). Fund = MSCI-India-IMI
+near-tracker (beta 0.93); proxy `0.74·INDA+0.26·SMIN` (corr 0.988).
+- **C1 DONE (website):** `drivers_analysis.py`→`drivers_output.json`; `build_site.py`+`_theme.css`→`site/index.html`,
+  served locally (`open-india-site.bat`, http://localhost:8137). Per-driver **z-scores** + **Composite Macro-Stress
+  Index** (variance-weighted) + **block-bootstrap Monte Carlo**. Data to 2026-08-04, verified vs live pull; added
+  India-rates driver (SBI gilt ETF `SETF10GILT.NS`), Brent primary oil. Read: stress −0.99σ (calmest ~7%), fund
+  +1.7σ stretched, all drivers tailwinds → **SELL into strength now**. Shapley confirmed best method (`recheck_variance.py`).
+- **C2 DONE (sourced, not yet in site):** catalyst map — MSCI 12-Aug review (~$2.3-3.2B, conditional), RBI hold
+  5.25%, Hormuz/oil two-sided (biggest tail), Gen-Z protests, soft bank earnings, FII turning. **Verdict: SELL now,
+  don't wait for 12 Aug** (MSCI money is 31-Aug + conditional + fund-irrelevant; live oil tail dominates).
+- Earlier `Combine_OR` backtest + `report.pdf` = the pre-reframe exit-signal work (superseded framing, kept for reference).
+- **NEXT:** build C2 into the site; optional MSCI-announcement event study; then C3 peer table.
+Full detail → auto-memory `india-exit-analysis` + daily-log 2026-08-04/05.
+
+## Status: v1.2 TOP-DOWN UI + DEPLOYED via Cloudflare tunnel (2026-08-04). 19/19 tests pass.
+**Runs as ONE service now:** `uvicorn src.api.server:app --port 8000` serves the built front-end
+(`web/out`, from `npx next build`) AND `/api` at one origin → open http://localhost:8000. (Dev split
+still works: `cd web && npm run dev` → :3000, with `web/.env.development` pointing at :8000.)
+**Shared with the boss via a free public link:** double-click `start-boss-link.bat` → starts the app +
+a Cloudflare quick tunnel (`cloudflared` in `~/bin`) → a random `*.trycloudflare.com` URL. Free, no card,
+full app incl. AI (local Gemini CLI, no key). Live only while the PC + launcher run; URL changes per run.
+Cloud (Render/HF) was abandoned — both now gate their FREE tier behind a credit card.
+
+NEW this window (2026-07-29→08-04): whole UI rebuilt **top-down** (ranked summary → header → ① Drivers
+→ ② Size & Risk → ③ Financials → ④ AI Exposure → Diagnostics drawer; gate strip + tabs removed — the
+vertical-card vision is DONE). Beta shown = simple 1-yr (not partial). Return Bridge = Raw vs Own-story,
+both compounded. AI exposure graded Strong/Moderate/Low/None + working web search. Financials gained P/E,
+net income & revenue YoY. EV/EBITDA + P/E benchmarked vs **real Damodaran Jan-2026 industry averages**.
+
+v1.1/v2 base intact (React/FastAPI, drivers mode + Shapley variance panel, alpha-significance, EDGAR
+TTM Yahoo-matched fundamentals, opt-in KB, Glossary).
 
 - **v2 Performance-Drivers reframe — Phases 1–3 DONE (2026-07-29).** `regression/variance.py` (Shapley/LMG,
   idiosyncratic = 1 − adjusted R²); new `drivers` mode (config.py `FACTOR_SETS`/`FACTOR_GROUPS`,

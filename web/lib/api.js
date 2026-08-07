@@ -28,11 +28,17 @@ export const health = () => jf('/api/health');
 
 const post = (url, body) =>
   jf(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const del = (url) => jf(url, { method: 'DELETE' });
+
+export const deleteRun = (runId) => del(`/api/history/${runId}`);
+export const clearHistory = () => del('/api/history');
 
 export const runBacktest = (body) => post('/api/backtest', body);
 export const saveBacktest = (payload, name) => post('/api/backtest/save', { payload, name });
 export const listBacktests = () => jf('/api/backtests');
 export const openBacktest = (id) => jf(`/api/backtests/${id}`);
+export const deleteBacktest = (id) => del(`/api/backtests/${id}`);
+export const clearBacktests = () => del('/api/backtests');
 export const runExposure = (ticker, deep = false) => post('/api/exposure', { ticker, deep });
 export const getVerdict = (b) => post('/api/exposure/verdict', b);
 export const getRelStrength = (b) => post('/api/relative-strength', b);

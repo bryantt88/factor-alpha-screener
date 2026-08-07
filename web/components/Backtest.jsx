@@ -37,7 +37,7 @@ const underwater = (eq) => { let pk = eq.length ? eq[0] : 1; return eq.map((v) =
 export default function Backtest({ presets, initialResult }) {
   const [uniKey, setUniKey] = useState('us100');
   const [universe, setUniverse] = useState(UNIVERSES.us100.tickers);
-  const [preset, setPreset] = useState('us_4factor');   // factor model (4factor = clean hedge basis)
+  const [preset, setPreset] = useState('us_drivers');   // factor model (full factors = clean hedge basis for the neutral book)
   const [drivers, setDrivers] = useState([]);
   const [horizon, setHorizon] = useState(252);
   const [signalHorizon, setSignalHorizon] = useState(63);

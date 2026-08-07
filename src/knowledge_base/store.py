@@ -10,6 +10,7 @@ import datetime as _dt
 import json
 import os
 import pickle
+import shutil
 
 import pandas as pd
 
@@ -122,6 +123,38 @@ def list_runs(runs_dir: str = "runs") -> list[dict]:
     return sorted(out, key=lambda m: m.get("timestamp", ""), reverse=True)
 
 
+def _safe_child(base: str, name: str) -> str | None:
+    """Resolve `name` as a DIRECT child of `base`, or None if it escapes (path traversal). Used to
+    guard destructive ops against a crafted run_id/bid coming from the API URL (e.g. '../..')."""
+    if not name:
+        return None
+    target = os.path.normpath(os.path.join(base, name))
+    if os.path.dirname(target) != os.path.normpath(base):
+        return None
+    return target
+
+
+def delete_run(run_id: str, runs_dir: str = "runs") -> bool:
+    """Delete one saved run's folder (irreversible). Returns True if a folder was removed."""
+    folder = _safe_child(runs_dir, run_id)
+    if folder and os.path.isdir(folder):
+        shutil.rmtree(folder, ignore_errors=True)
+        return True
+    return False
+
+
+def clear_runs(runs_dir: str = "runs") -> int:
+    """Delete every saved run (each folder that carries a meta.json). Returns how many were removed.
+    Only touches KB entries listed by list_runs — stray non-saved folders are left alone."""
+    n = 0
+    for meta in list_runs(runs_dir):
+        folder = meta.get("folder") or os.path.join(runs_dir, meta.get("run_id", ""))
+        if os.path.isdir(folder):
+            shutil.rmtree(folder, ignore_errors=True)
+            n += 1
+    return n
+
+
 def load_run(run_id: str, runs_dir: str = "runs") -> tuple[dict, pd.DataFrame | None]:
     """Return (meta, scorecard_df) for a saved run; df is None if no scorecard was written."""
     folder = os.path.join(runs_dir, run_id)
@@ -202,3 +235,24 @@ def load_backtest(bid: str, runs_dir: str = BACKTESTS_DIR) -> dict | None:
             return json.load(f).get("payload")
     except Exception:
         return None
+
+
+def delete_backtest(bid: str, runs_dir: str = BACKTESTS_DIR) -> bool:
+    """Delete one saved backtest (irreversible). Returns True if a file was removed."""
+    path = _safe_child(runs_dir, bid + ".json")
+    if path and os.path.isfile(path):
+        os.remove(path)
+        return True
+    return False
+
+
+def clear_backtests(runs_dir: str = BACKTESTS_DIR) -> int:
+    """Delete every saved backtest. Returns how many were removed."""
+    if not os.path.isdir(runs_dir):
+        return 0
+    n = 0
+    for fn in os.listdir(runs_dir):
+        if fn.endswith(".json"):
+            os.remove(os.path.join(runs_dir, fn))
+            n += 1
+    return n

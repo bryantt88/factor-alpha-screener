@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { runScreen, listHistory, openRun, health, listBacktests, openBacktest } from '@/lib/api';
+import { runScreen, listHistory, openRun, health, listBacktests, openBacktest,
+  deleteRun, clearHistory, deleteBacktest, clearBacktests } from '@/lib/api';
 import Results from '@/components/Results';
 import Opportunity from '@/components/Opportunity';
 import DriverBuilder from '@/components/DriverBuilder';
@@ -11,7 +12,11 @@ import Glossary from '@/components/Glossary';
 // driver list (region-agnostic). Indonesia proxies are all yfinance-verified (^JKSE / IDR=X / BZ=F).
 const PRESETS = {
   us_drivers: { label: 'US · full factors', mode: 'drivers', drivers: null },
-  us_4factor: { label: 'US · commodity-adj', mode: '4factor', drivers: null },
+  us_commodity: { label: 'US · commodity drivers', mode: 'custom', drivers: [
+    { name: 'oil', ticker: 'CL=F', group: 'Energy' },
+    { name: 'gas', ticker: 'NG=F', group: 'Energy' },
+    { name: 'gold', ticker: 'GC=F', group: 'Metals' },
+  ] },
   indonesia: { label: 'Indonesia', mode: 'custom', drivers: [
     { name: 'market', ticker: '^JKSE', group: 'Market' },
     { name: 'fx', ticker: 'IDR=X', group: 'FX' },
@@ -96,12 +101,32 @@ export default function Home() {
     finally { setBusy(false); }
   }
 
-  useEffect(() => {
-    if (page === 'history') {
-      listHistory().then(setHist).catch(() => {});
-      listBacktests().then(setBtList).catch(() => {});
-    }
-  }, [page]);
+  function refreshHistory() {
+    listHistory().then(setHist).catch(() => {});
+    listBacktests().then(setBtList).catch(() => {});
+  }
+  useEffect(() => { if (page === 'history') refreshHistory(); }, [page]);
+
+  async function doDeleteRun(runId, label) {
+    if (!window.confirm(`Delete saved run “${label}”? This can’t be undone.`)) return;
+    try { await deleteRun(runId); refreshHistory(); }
+    catch (e) { setErr(String(e.message || e)); }
+  }
+  async function doClearHistory() {
+    if (!window.confirm(`Delete ALL ${hist.length} saved run(s)? This can’t be undone.`)) return;
+    try { await clearHistory(); setHist([]); }
+    catch (e) { setErr(String(e.message || e)); }
+  }
+  async function doDeleteBacktest(id, label) {
+    if (!window.confirm(`Delete saved backtest “${label}”? This can’t be undone.`)) return;
+    try { await deleteBacktest(id); refreshHistory(); }
+    catch (e) { setErr(String(e.message || e)); }
+  }
+  async function doClearBacktests() {
+    if (!window.confirm(`Delete ALL ${btList.length} saved backtest(s)? This can’t be undone.`)) return;
+    try { await clearBacktests(); setBtList([]); }
+    catch (e) { setErr(String(e.message || e)); }
+  }
 
   async function openSavedBacktest(id) {
     try { const p = await openBacktest(id); setLoadedBt(p); setBtKey((k) => k + 1); setPage('backtest'); }
@@ -223,55 +248,75 @@ export default function Home() {
             <Hero title="History / knowledge base" sub="Only runs you add are kept — each re-opens the full report." />
             {data && data.runId && saved && <div className="caption">Tip: open your saved run below.</div>}
             {hist.length === 0 ? <div className="caption">No saved runs yet.</div> : (
-              <div className="tablewrap" style={{ marginTop: 8 }}>
-                <table className="sc">
-                  <thead><tr><th>name</th><th>as-of</th><th>factor</th><th>horizon</th><th>tickers</th><th></th></tr></thead>
-                  <tbody>
-                    {hist.map((h) => (
-                      <tr key={h.runId}>
-                        <td>{h.name}</td><td className="mono">{h.asOfDate}</td><td className="mono">{h.factorSet}</td>
-                        <td className="mono">{h.horizon}</td><td>{(h.tickers || []).join(' ')}</td>
-                        <td>{h.hasFullResult && (
-                          <button className="btn ghost" onClick={async () => {
-                            try { const d = await openRun(h.runId); setData(d); setSaved(true); setPage('results'); }
-                            catch (e) { setErr(String(e.message || e)); }
-                          }}>Open →</button>
-                        )}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                  <button className="btn ghost danger sm" onClick={doClearHistory}>🗑 Clear all runs</button>
+                </div>
+                <div className="tablewrap" style={{ marginTop: 8 }}>
+                  <table className="sc">
+                    <thead><tr><th>name</th><th>as-of</th><th>factor</th><th>horizon</th><th>tickers</th><th style={{ textAlign: 'right' }}>actions</th></tr></thead>
+                    <tbody>
+                      {hist.map((h) => (
+                        <tr key={h.runId}>
+                          <td>{h.name}</td><td className="mono">{h.asOfDate}</td><td className="mono">{h.factorSet}</td>
+                          <td className="mono">{h.horizon}</td><td>{(h.tickers || []).join(' ')}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                              {h.hasFullResult && (
+                                <button className="btn ghost sm" onClick={async () => {
+                                  try { const d = await openRun(h.runId); setData(d); setSaved(true); setPage('results'); }
+                                  catch (e) { setErr(String(e.message || e)); }
+                                }}>Open →</button>
+                              )}
+                              <button className="btn ghost danger sm" onClick={() => doDeleteRun(h.runId, h.name)}>Delete</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
 
             <div className="eyebrow" style={{ marginTop: 22 }}>Saved backtests</div>
             {btList.length === 0 ? <div className="caption">No saved backtests yet — run one on ③ Backtest and click “Add to Knowledge Base”.</div> : (
-              <div className="tablewrap" style={{ marginTop: 8 }}>
-                <table className="sc">
-                  <thead><tr><th>name</th><th>saved</th><th>universe</th><th style={{ textAlign: 'right' }}>CAGR</th>
-                    <th style={{ textAlign: 'right' }}>vol</th><th style={{ textAlign: 'right' }}>maxDD</th>
-                    <th style={{ textAlign: 'right' }}>Sharpe</th><th style={{ textAlign: 'right' }}>beta</th><th></th></tr></thead>
-                  <tbody>
-                    {btList.map((b) => {
-                      const s = b.summary || {};
-                      const f = (x, d = 0) => (x == null ? '—' : (x * (d ? 1 : 100)).toFixed(d ? 2 : 0) + (d ? '' : '%'));
-                      return (
-                        <tr key={b.id}>
-                          <td>{b.name}</td>
-                          <td className="mono">{(b.timestamp || '').slice(0, 10)}</td>
-                          <td className="mono">{(b.stocks || []).length} names</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>{f(s.cagr)}</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>{f(s.annVol)}</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>{f(s.maxDrawdown)}</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>{f(s.sharpe, 2)}</td>
-                          <td className="mono" style={{ textAlign: 'right' }}>{f(s.realizedMarketBeta, 2)}</td>
-                          <td><button className="btn ghost" onClick={() => openSavedBacktest(b.id)}>Open →</button></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                  <button className="btn ghost danger sm" onClick={doClearBacktests}>🗑 Clear all backtests</button>
+                </div>
+                <div className="tablewrap" style={{ marginTop: 8 }}>
+                  <table className="sc">
+                    <thead><tr><th>name</th><th>saved</th><th>universe</th><th style={{ textAlign: 'right' }}>CAGR</th>
+                      <th style={{ textAlign: 'right' }}>vol</th><th style={{ textAlign: 'right' }}>maxDD</th>
+                      <th style={{ textAlign: 'right' }}>Sharpe</th><th style={{ textAlign: 'right' }}>beta</th><th style={{ textAlign: 'right' }}>actions</th></tr></thead>
+                    <tbody>
+                      {btList.map((b) => {
+                        const s = b.summary || {};
+                        const f = (x, d = 0) => (x == null ? '—' : (x * (d ? 1 : 100)).toFixed(d ? 2 : 0) + (d ? '' : '%'));
+                        return (
+                          <tr key={b.id}>
+                            <td>{b.name}</td>
+                            <td className="mono">{(b.timestamp || '').slice(0, 10)}</td>
+                            <td className="mono">{(b.stocks || []).length} names</td>
+                            <td className="mono" style={{ textAlign: 'right' }}>{f(s.cagr)}</td>
+                            <td className="mono" style={{ textAlign: 'right' }}>{f(s.annVol)}</td>
+                            <td className="mono" style={{ textAlign: 'right' }}>{f(s.maxDrawdown)}</td>
+                            <td className="mono" style={{ textAlign: 'right' }}>{f(s.sharpe, 2)}</td>
+                            <td className="mono" style={{ textAlign: 'right' }}>{f(s.realizedMarketBeta, 2)}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                <button className="btn ghost sm" onClick={() => openSavedBacktest(b.id)}>Open →</button>
+                                <button className="btn ghost danger sm" onClick={() => doDeleteBacktest(b.id, b.name)}>Delete</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </>
         )}

@@ -54,10 +54,32 @@ Plus: **custom / region drivers** (any yfinance ticker), EDGAR fundamentals, and
 
 ---
 
-## Run it locally
+## Run it on your desktop
 
 The built front-end (`web/out`) is committed, so the whole app runs with **Python alone** — no Node
-required for the default path.
+required. The full app (UI + `/api`) is served at one origin; open **http://localhost:8000**. Tabs:
+**New Run** (score a basket) → **Results** (ranked read + Trade ideas) → **Backtest** (walk-forward
+lab) → **History** (saved runs & backtests, with delete / clear).
+
+### Easiest — double-click launcher (recommended)
+
+Get the code once, then double-click one file. The launcher creates its own private Python
+environment and installs everything on the **first** run, then just starts the app on every run.
+
+1. **Install Python 3.12+** — download from <https://www.python.org/downloads/>.
+   On Windows, tick **“Add python.exe to PATH”** during install.
+2. **Get the code** — either `git clone <this-repo-url>`, or on GitHub click
+   **Code → Download ZIP** and unzip it.
+3. **Launch it:**
+   - **Windows:** double-click **`run-platform.bat`**
+     (first launch: SmartScreen may warn → *More info → Run anyway*).
+   - **macOS / Linux:** run `bash run-platform.sh` in a terminal in that folder.
+4. Your browser opens **http://localhost:8000** automatically. Keep the launcher window open while
+   you use it; close it to stop the app.
+
+That's the whole setup — same experience as the author's machine, no terminal knowledge needed.
+
+### Manual (if you prefer the command line)
 
 **Prerequisites:** Python 3.12+. (Node 18+ only if you want to modify the front-end.)
 
@@ -71,9 +93,6 @@ pip install -r requirements.txt
 python -m uvicorn src.api.server:app --host 127.0.0.1 --port 8000
 # open http://localhost:8000
 ```
-
-That serves the full app (UI + `/api`) at one origin. Tabs: **New Run** (score a basket) → **Results**
-(ranked read + Trade ideas) → **Backtest** (walk-forward lab) → **History** (saved runs & backtests).
 
 **Command line (no web):**
 ```bash
@@ -136,12 +155,16 @@ config.yaml       all knobs
 python -m pytest tests/ -q      # offline, no network
 ```
 
-## Deploy
+## Share it / deploy (optional)
 
-- **Local shareable link (Windows):** double-click `start-boss-link.bat` — starts the app + a free
-  Cloudflare quick tunnel (`*.trycloudflare.com`), no account or card needed.
+Running it on your own desktop (above) is all most people need. To let *someone else* open it:
+
+- **Temporary shareable link (Windows):** double-click `start-boss-link.bat` — starts the app **and** a
+  free Cloudflare quick tunnel (`https://<random>.trycloudflare.com`), no account or card needed. The
+  link is live only while the window stays open, and the address changes each launch. Requires
+  `cloudflared` on PATH (download the single `.exe` from Cloudflare).
 - **Docker / Hugging Face Space:** the `Dockerfile` runs FastAPI serving `web/out` + `/api` on port
-  7860 (the front-matter above configures the Space).
+  7860 (`docker build -t screener . && docker run -p 8000:7860 screener` → http://localhost:8000).
 - **Render:** `render.yaml` blueprint (set `GEMINI_API_KEY` as a secret).
 
 ## Principles (non-negotiable)

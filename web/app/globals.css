@@ -78,6 +78,9 @@ a { color: var(--accent); text-decoration: none; }
 .btn:hover { background: #4338CA; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--border-strong); }
+.btn.danger { background: #fff; color: #b91c1c; border: 1px solid #f0b4b4; }
+.btn.danger:hover { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+.btn.sm { padding: 6px 12px; font-size: .82rem; border-radius: 8px; }
 
 /* pills */
 .pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .76rem; font-weight: 700; }

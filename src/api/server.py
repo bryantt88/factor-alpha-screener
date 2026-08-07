@@ -135,6 +135,20 @@ def history_run(run_id: str) -> dict:
     return screen_payload(full, run_id=run_id, name=meta.get("name", run_id))
 
 
+@app.delete("/api/history")
+def clear_history() -> dict:
+    """Delete every saved run from the knowledge base (irreversible)."""
+    return {"cleared": store.clear_runs()}
+
+
+@app.delete("/api/history/{run_id}")
+def delete_history_run(run_id: str) -> dict:
+    """Delete one saved run (irreversible)."""
+    if not store.delete_run(run_id):
+        raise HTTPException(status_code=404, detail="Run not found.")
+    return {"deleted": run_id}
+
+
 # --- backtest (walk-forward market-neutral book) -------------------------------------------------
 def _json_safe(x):
     """Recursively replace non-finite floats (NaN/inf) with None so the payload is strict JSON."""
@@ -228,6 +242,20 @@ def load_backtest_ep(bid: str) -> dict:
     if payload is None:
         raise HTTPException(status_code=404, detail="Saved backtest not found.")
     return _json_safe(payload)
+
+
+@app.delete("/api/backtests")
+def clear_backtests_ep() -> dict:
+    """Delete every saved backtest (irreversible)."""
+    return {"cleared": store.clear_backtests()}
+
+
+@app.delete("/api/backtests/{bid}")
+def delete_backtest_ep(bid: str) -> dict:
+    """Delete one saved backtest (irreversible)."""
+    if not store.delete_backtest(bid):
+        raise HTTPException(status_code=404, detail="Saved backtest not found.")
+    return {"deleted": bid}
 
 
 # --- Gate 3 (AI exposure) — propose-and-approve, the only LLM decision ---------------------------

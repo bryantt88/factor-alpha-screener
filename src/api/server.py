@@ -64,7 +64,7 @@ from ..knowledge_base import hashing, store
 from ..main import run_screen
 from .serialize import screen_payload
 
-app = FastAPI(title="AI-Power Stack Screener API", version="1.0")
+app = FastAPI(title="Factor-Alpha Screener API", version="1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],

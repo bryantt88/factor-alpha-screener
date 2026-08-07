@@ -1,6 +1,8 @@
-# SPEC — AI-Power Stack Screener
+# SPEC — Factor-Alpha Screener
 
 The complete, current design. This supersedes any earlier exploratory discussion. Where this file and any other disagree, this file wins.
+
+> Note: the platform is now a general factor-model / performance-driver screener for any liquid market; the "power-stack" universe described below is the original built-in preset, not the product's scope.
 
 ---
 

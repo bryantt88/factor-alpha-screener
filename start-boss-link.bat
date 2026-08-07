@@ -1,13 +1,13 @@
 @echo off
-title AI-Power Screener - Boss Link
+title Factor-Alpha Screener - Boss Link
 cd /d "%~dp0"
 
 echo ============================================================
-echo   AI-Power Screener  -  starting your shareable link
+echo   Factor-Alpha Screener  -  starting your shareable link
 echo ============================================================
 echo.
 echo [1/2] Starting the app (data + calculations) on port 8000...
-start "AI-Power Screener app" /min cmd /c "python -m uvicorn src.api.server:app --host 127.0.0.1 --port 8000"
+start "Factor-Alpha Screener app" /min cmd /c "python -m uvicorn src.api.server:app --host 127.0.0.1 --port 8000"
 
 echo       waiting a few seconds for it to boot...
 timeout /t 8 >nul

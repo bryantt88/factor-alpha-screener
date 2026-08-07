@@ -191,7 +191,7 @@ def _ensure_utf8_stdout() -> None:
 def _print_report(result: ScreenResult) -> None:
     _ensure_utf8_stdout()
     cfg = result.config
-    print(f"\nAI-Power Stack Screener — scorecard")
+    print(f"\nFactor-Alpha Screener — scorecard")
     print(f"as-of {cfg.as_of_date}  |  factor-set: {cfg.factor_set}  |  horizon: {cfg.time_horizon_days}d")
     print("=" * 78)
     if result.gates or result.outputs:
@@ -216,7 +216,7 @@ def _print_report(result: ScreenResult) -> None:
 
 
 def main(argv=None) -> ScreenResult:
-    ap = argparse.ArgumentParser(description="AI-Power Stack Screener — Step 1 regression core")
+    ap = argparse.ArgumentParser(description="Factor-Alpha Screener — factor-model / performance-driver regression core")
     ap.add_argument("--tickers", nargs="+", required=True, help="one or more tickers, e.g. VST CEG NRG")
     ap.add_argument("--factor-set", dest="factor_set", choices=list(FACTOR_SETS), default=None)
     ap.add_argument("--horizon", type=int, default=None, help="beta+residual window in trading days")

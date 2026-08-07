@@ -49,7 +49,7 @@ from collections import defaultdict
 
 from .base import REQUIRED_FIELDS, FundamentalsBackend
 
-_UA = {"User-Agent": "AI-Power-Stack-Screener (contact: bryant.effendi@xpef.org)"}
+_UA = {"User-Agent": "Factor-Alpha-Screener (contact: bryant.effendi@xpef.org)"}
 _CIK_MAP: dict | None = None
 _FACTS_CACHE: dict = {}          # cik -> merged facts (per process; avoids refetch across gates)
 _SUBMISSIONS_CACHE: dict = {}    # cik -> submissions index (per process)

@@ -162,7 +162,7 @@ export default function Home() {
               <div className="field">
                 <label>Run name (optional)</label>
                 <input className="input" value={name} onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. AI-power core — Jul 2026" />
+                  placeholder="e.g. US power core — Jul 2026" />
               </div>
               <div className="field">
                 <label>Market / factor preset</label>

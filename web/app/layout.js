@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'AI-Power Stack Screener',
-  description: 'Idiosyncratic-alpha screener for AI-power-stack equities',
+  title: 'Factor-Alpha Screener',
+  description: 'Factor-model / performance-driver screener — idiosyncratic alpha & market-neutral trade ideas',
 };
 
 export default function RootLayout({ children }) {

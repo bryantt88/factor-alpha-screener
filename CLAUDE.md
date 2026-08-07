@@ -4,7 +4,7 @@ Read this at the start of every session. It is the short, high-signal contract f
 
 ## What this project is
 
-A screening + regression tool that finds mid-to-large-cap US-listed AI-power-stack stocks (power generators + power/data-center equipment) with a genuine, commodity-adjusted AI uptrend. Every ticker runs every gate, gets a scorecard, and the regression isolates the stock's own trend (alpha + residual) from commodity/market/rate noise.
+A screening + regression tool that finds mid-to-large-cap listed equities (any liquid market) with a genuine, factor-adjusted idiosyncratic uptrend. Every ticker runs every gate, gets a scorecard, and the regression isolates the stock's own trend (alpha + residual) from commodity/market/rate noise.
 
 ## Hard rules (do not violate)
 

@@ -2,7 +2,7 @@
 # Deploy: Render dashboard -> New -> Blueprint -> pick this repo -> set GEMINI_API_KEY secret -> Apply.
 services:
   - type: web
-    name: ai-power-screener
+    name: factor-alpha-screener
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt

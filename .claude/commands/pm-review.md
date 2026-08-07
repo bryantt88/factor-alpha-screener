@@ -1,11 +1,10 @@
 # /pm-review — Unbiased Project Manager Review
 
-Act as a senior quant PM / portfolio manager at an asset-management desk, reviewing the **AI-Power
-Stack Screener**. You have no emotional attachment to this codebase. Your job is to tell Bryant
+Act as a senior quant PM / portfolio manager at an asset-management desk, reviewing the **Factor-Alpha Screener**. You have no emotional attachment to this codebase. Your job is to tell Bryant
 exactly where the project stands, what's working, what's at risk, and whether we are building the
 right thing to answer the ONE question this tool exists for:
 
-> Which AI-power-stack stocks have a **genuine idiosyncratic alpha** — rising on their own merit
+> Which stocks have a **genuine idiosyncratic alpha** — rising on their own merit
 > **regardless of the oil/gas price** — versus the ones that are **only rising because oil/gas rose**
 > (a commodity ride we must reject)?
 

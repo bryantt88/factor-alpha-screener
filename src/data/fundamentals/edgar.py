@@ -501,7 +501,7 @@ def _net_debt(facts: dict, fresh) -> tuple | None:
     # Short-term (current) marketable securities are cash-like and netted against debt (Yahoo does the
     # same); this closes the net-debt gap on cash-rich names (e.g. Apple's ~$23B). LONG-term investments
     # are deliberately excluded — they aren't "cash". Utilities/generators tag ~none, so this is a no-op
-    # for the power-stack universe.
+    # for the power / data-center universe.
     sti = inst("ShortTermInvestments", "MarketableSecuritiesCurrent", "OtherShortTermInvestments")
     total_cash = cash[0] + (sti[0] if sti else 0.0)
     return debt - total_cash, max(end, cash[1], sti[1] if sti else cash[1])

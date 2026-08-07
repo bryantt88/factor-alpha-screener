@@ -6,7 +6,7 @@ We assign sector — it's a fact — but never fabricate it: if the sector can't
 None and the stock simply carries no Sector factor (its variance falls to another group / idiosyncratic),
 surfaced as a dropped factor rather than a guess (CLAUDE.md rule 2).
 
-Resolution order: (1) an explicit override for the known power-stack universe (auditable, offline-safe);
+Resolution order: (1) an explicit override for the known power / data-center universe (auditable, offline-safe);
 (2) yfinance `.info` GICS sector mapped to the matching SPDR sector ETF; (3) None.
 """
 from __future__ import annotations

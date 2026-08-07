@@ -8,7 +8,7 @@ The complete, current design. This supersedes any earlier exploratory discussion
 
 ## 1. Purpose
 
-Find mid-to-large-cap, US-listed **AI-power-stack** equities with a genuine, commodity-adjusted AI uptrend. The AI-power stack spans:
+Find mid-to-large-cap listed **equities** with a genuine, factor-adjusted idiosyncratic uptrend. The original built-in power / data-center preset spans:
 
 - **Power generators** (Bucket 1) — IPPs and utilities that sell electricity: gas, nuclear, renewables, geothermal.
 - **Power / data-center equipment** (Bucket 2) — hardware makers: cooling, UPS, switchgear, transformers, turbines, grid gear.
@@ -163,7 +163,7 @@ The regression engine depends only on **free public price data**, so the whole c
 ## 10. Repo layout
 
 ```
-ai-power-screener/
+factor-alpha-screener/
 ├── README.md
 ├── CLAUDE.md
 ├── requirements.txt

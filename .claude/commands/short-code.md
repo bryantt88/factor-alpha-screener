@@ -3,7 +3,7 @@
 Shorten and tighten the target code so it is more concise and efficient, while preserving **100%
 identical behavior**. This is a pure length/efficiency pass — NOT a bug fix, NOT a feature change, NOT
 a redesign. Every function must do exactly what it did before: same inputs, same outputs, same side
-effects. (For the AI-Power Stack Screener this especially means: identical α/β/idiosyncratic numbers,
+effects. (For the Factor-Alpha Screener this especially means: identical α/β/idiosyncratic numbers,
 identical Track tags, identical scorecard values.)
 
 ## Scope

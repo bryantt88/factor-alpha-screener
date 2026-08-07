@@ -84,7 +84,7 @@ That's the whole setup — same experience as the author's machine, no terminal 
 **Prerequisites:** Python 3.12+. (Node 18+ only if you want to modify the front-end.)
 
 ```bash
-git clone <this-repo-url> && cd ai-power-screener
+git clone <this-repo-url> && cd factor-alpha-screener
 
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate

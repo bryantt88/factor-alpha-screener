@@ -2,7 +2,7 @@
 
 Background so Claude Code understands the problem space. **This is context, not a hardcoded list** — the tool screens whatever tickers the user inputs. The figures here are as of mid-2026 and illustrative; the tool always pulls live data. GE Vernova (GEV) is **excluded** throughout (the desk already holds a position).
 
-## The AI-power stack
+## The power / data-center universe (original preset)
 
 Energy flows from fuel to the AI chip across three tiers:
 

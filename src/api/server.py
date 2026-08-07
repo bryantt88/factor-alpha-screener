@@ -26,19 +26,30 @@ os.chdir(_ROOT)  # so config.yaml + runs/ resolve at the repo root
 def _load_dotenv(path: str) -> None:
     """Minimal, dependency-free .env loader: KEY=VALUE lines (# comments allowed), used so each user can
     drop their OWN GEMINI_API_KEY into a local, gitignored `.env` (never committed). Does not overwrite a
-    variable already set in the real environment, so an explicit `set GEMINI_API_KEY=...` still wins."""
+    variable already set in the real environment, so an explicit `set GEMINI_API_KEY=...` still wins.
+    Encoding-robust: a file written by PowerShell `>` is UTF-16-with-BOM, so we try utf-8/utf-16."""
     try:
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                k, v = k.strip(), v.strip().strip('"').strip("'")
-                if k and k not in os.environ:
-                    os.environ[k] = v
+        with open(path, "rb") as f:
+            raw = f.read()
     except FileNotFoundError:
-        pass
+        return
+    text = None
+    for enc in ("utf-8-sig", "utf-16"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeError:
+            continue
+    if text is None:
+        return
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k, v = k.strip(), v.strip().strip('"').strip("'")
+        if k and k not in os.environ:
+            os.environ[k] = v
 
 
 _load_dotenv(os.path.join(_ROOT, ".env"))  # optional; enables AI features when a key is present

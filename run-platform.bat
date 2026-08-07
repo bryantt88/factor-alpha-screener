@@ -30,7 +30,14 @@ if not exist ".venv\Scripts\python.exe" (
   echo.
 )
 
-REM --- 3. Start the app and open the browser --------------------------------
+REM --- 3. Gentle hint if the optional AI key isn't set ----------------------
+if not exist ".env" (
+  echo [note] AI features are OFF ^(everything else works^). To turn them on:
+  echo        copy  .env.example  to  .env  and paste your own Gemini API key.
+  echo.
+)
+
+REM --- 4. Start the app and open the browser --------------------------------
 echo [run] Starting the platform at  http://localhost:8000
 echo       Keep this window OPEN while you use it.  Close it to stop the app.
 echo.

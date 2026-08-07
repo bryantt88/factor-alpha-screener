@@ -20,7 +20,13 @@ if [ ! -x ".venv/bin/python" ]; then
   echo "[setup] Done."
 fi
 
-# --- 3. Open the browser shortly after, then run the server (blocks) --------
+# --- 3. Gentle hint if the optional AI key isn't set ------------------------
+if [ ! -f ".env" ]; then
+  echo "[note] AI features are OFF (everything else works). To turn them on:"
+  echo "       copy .env.example to .env and paste your own Gemini API key."
+fi
+
+# --- 4. Open the browser shortly after, then run the server (blocks) --------
 echo "[run] Starting the platform at http://localhost:8000  (press Ctrl+C to stop)"
 (
   sleep 4

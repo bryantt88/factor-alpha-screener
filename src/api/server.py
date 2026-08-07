@@ -22,6 +22,27 @@ from pydantic import BaseModel, Field
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.chdir(_ROOT)  # so config.yaml + runs/ resolve at the repo root
 
+
+def _load_dotenv(path: str) -> None:
+    """Minimal, dependency-free .env loader: KEY=VALUE lines (# comments allowed), used so each user can
+    drop their OWN GEMINI_API_KEY into a local, gitignored `.env` (never committed). Does not overwrite a
+    variable already set in the real environment, so an explicit `set GEMINI_API_KEY=...` still wins."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except FileNotFoundError:
+        pass
+
+
+_load_dotenv(os.path.join(_ROOT, ".env"))  # optional; enables AI features when a key is present
+
 from ..agent.exposure_agent import GRADES, TYPES, confirm_exposure
 from ..agent.gemini_client import GeminiError, gemini_available
 from ..app.explain import explain_stock

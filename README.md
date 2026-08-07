@@ -99,11 +99,20 @@ python -m uvicorn src.api.server:app --host 127.0.0.1 --port 8000
 python -m src.main --tickers VST CEG NRG VRT ETN --factor-set drivers --horizon 252
 ```
 
-**Optional AI features** (the AI-exposure agent + the "how to read" explainer):
-```bash
-# either install the free `gemini` CLI (used as a $0 subprocess), or:
-export GEMINI_API_KEY=...           # uses the REST API path (headless / cloud)
-```
+### Enable the AI features (optional)
+
+The AI-exposure agent and the "how to read" explainer are the only parts that use an LLM (Gemini).
+Everything else works without them — if no key is present, those buttons are simply disabled.
+
+**Each person uses their OWN key** (get a free one at <https://aistudio.google.com/apikey>):
+
+1. Copy **`.env.example`** to **`.env`** in the project folder.
+2. Paste your key: `GEMINI_API_KEY=your-key-here`
+3. Restart the app.
+
+`.env` is gitignored, so your key stays on your machine and is **never** committed or pushed. (Advanced:
+you can instead `export GEMINI_API_KEY=...` in your shell, or install the free `gemini` CLI for a
+no-key local login.)
 
 **Modifying the front-end** (rebuild the static export it serves):
 ```bash

@@ -12,7 +12,7 @@ import Glossary from '@/components/Glossary';
 // driver list (region-agnostic). Indonesia proxies are all yfinance-verified (^JKSE / IDR=X / BZ=F).
 const PRESETS = {
   us_drivers: { label: 'US · full factors', mode: 'drivers', drivers: null },
-  us_commodity: { label: 'US · commodity drivers', mode: 'custom', drivers: [
+  us_commodity: { label: 'commodity drivers', mode: 'custom', drivers: [
     { name: 'oil', ticker: 'CL=F', group: 'Energy' },
     { name: 'gas', ticker: 'NG=F', group: 'Energy' },
     { name: 'gold', ticker: 'GC=F', group: 'Metals' },

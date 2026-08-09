@@ -29,14 +29,14 @@ class FundVerdict:
 
 
 def check_fundamentals(fund: dict, leverage_flag: float) -> FundVerdict:
-    vals = fund["values"]
+    vals = fund.get("values") or {}    # a backend that omits a key -> None -> 'unverified', never a crash
     basis = fund.get("basis")          # flow-item basis ('TTM->..' | 'FYxxxx') — appended to flow notes
     sfx = f" [{basis}]" if basis else ""
     ind = fund.get("industry") or {}   # Damodaran industry averages (real, sourced) — {} if unmapped
     m: dict[str, MetricVerdict] = {}
 
     # EBITDA margin + trend
-    margin, yoy = vals["ebitda_margin"], vals["ebitda_margin_yoy"]
+    margin, yoy = vals.get("ebitda_margin"), vals.get("ebitda_margin_yoy")
     if margin is None:
         m["ebitda_margin"] = MetricVerdict("unverified", None, "EBITDA margin unavailable")
     elif margin <= 0:
@@ -52,15 +52,19 @@ def check_fundamentals(fund: dict, leverage_flag: float) -> FundVerdict:
         m["ebitda_margin"].note += f" · ind {ind['ebitda_margin']:.0%}"
 
     # net debt / EBITDA
-    nde = vals["net_debt_to_ebitda"]
+    nde = vals.get("net_debt_to_ebitda")
     if nde is None:
         m["net_debt_to_ebitda"] = MetricVerdict("unverified", None, "net debt/EBITDA unavailable")
+    elif nde < 0 and margin is not None and margin <= 0:
+        # a negative ratio from non-positive EBITDA is undefined leverage, NOT "low leverage" — don't pass it.
+        # (net cash, i.e. negative net debt over positive EBITDA, still correctly passes below.)
+        m["net_debt_to_ebitda"] = MetricVerdict("unverified", nde, f"{nde:.1f}x (EBITDA non-positive — leverage undefined)")
     else:
         status = "pass" if nde <= leverage_flag else "fail"
         m["net_debt_to_ebitda"] = MetricVerdict(status, nde, f"{nde:.1f}x vs {leverage_flag:.0f}x flag")
 
     # earnings surprise
-    a, c = vals["last_eps_actual"], vals["last_eps_consensus"]
+    a, c = vals.get("last_eps_actual"), vals.get("last_eps_consensus")
     if a is None or c is None or c == 0:
         m["earnings_surprise"] = MetricVerdict("unverified", None, "EPS surprise unavailable")
     else:
@@ -100,7 +104,7 @@ def check_fundamentals(fund: dict, leverage_flag: float) -> FundVerdict:
         m["pe"] = MetricVerdict("pass", pe, f"{pe:.1f}x")
 
     # valuation — EV/EBITDA vs INDUSTRY average (Damodaran); FLAG only, never a fail
-    ev, ind_ev, med = vals["fwd_ev_ebitda"], ind.get("ev_ebitda"), vals["ev_ebitda_3yr_median"]
+    ev, ind_ev, med = vals.get("fwd_ev_ebitda"), ind.get("ev_ebitda"), vals.get("ev_ebitda_3yr_median")
     if ev is None:
         m["valuation"] = MetricVerdict("unverified", None, "EV/EBITDA unavailable")
     elif ind_ev is not None:

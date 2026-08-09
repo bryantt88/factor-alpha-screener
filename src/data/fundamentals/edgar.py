@@ -444,6 +444,7 @@ def _net_debt(facts: dict, fresh) -> tuple | None:
         return None
 
     leases_in_debt = False
+    st_in_debt = False
     # --- long-term debt (+ current maturities) ---
     lt = inst("LongTermDebtNoncurrent")
     if lt:                                          # noncurrent tag -> add the current portion separately
@@ -461,20 +462,24 @@ def _net_debt(facts: dict, fresh) -> tuple | None:
         debt, end = tot[0], tot[1]
         if "CapitalLeaseObligations" in tot[2]:
             leases_in_debt = True                   # this concept already bundles finance leases
+        if tot[2] in ("DebtLongtermAndShorttermCombinedAmount", "NotesAndLoansPayable", "NotesPayable"):
+            st_in_debt = True                       # this concept already bundles short-term borrowings
         if tot[2] == "LongTermDebtAndCapitalLeaseObligations":   # noncurrent-only -> add current portion
             cur = inst("LongTermDebtAndCapitalLeaseObligationsCurrent")
             if cur:
                 debt += cur[0]; end = max(end, cur[1])
 
     # --- short-term / other borrowings: the umbrella tag if fresh, else its components ---
-    st = inst("ShortTermBorrowings", "ShortTermDebt", "NotesAndLoansPayableCurrent",
-              "LinesOfCreditCurrent", "LoansPayableCurrent")
-    if st:
-        debt += st[0]; end = max(end, st[1])
-    else:
-        for c in (inst("CommercialPaper"), inst("OtherShortTermBorrowings")):
-            if c:
-                debt += c[0]; end = max(end, c[1])
+    # (skipped when the resolved debt concept above already bundles short-term, to avoid double-counting)
+    if not st_in_debt:
+        st = inst("ShortTermBorrowings", "ShortTermDebt", "NotesAndLoansPayableCurrent",
+                  "LinesOfCreditCurrent", "LoansPayableCurrent")
+        if st:
+            debt += st[0]; end = max(end, st[1])
+        else:
+            for c in (inst("CommercialPaper"), inst("OtherShortTermBorrowings")):
+                if c:
+                    debt += c[0]; end = max(end, c[1])
 
     # --- finance (capital) leases, unless the debt concept above already includes them ---
     if not leases_in_debt:

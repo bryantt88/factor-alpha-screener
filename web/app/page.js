@@ -37,7 +37,7 @@ function Hero({ title, sub }) {
 
 export default function Home() {
   const [page, setPage] = useState('new');
-  const [tickers, setTickers] = useState('CEG VST NRG VRT ETN');
+  const [tickers, setTickers] = useState('MSFT GOOGL META AMZN');
   const [preset, setPreset] = useState('us_drivers');
   const [drivers, setDrivers] = useState([]);   // active only for region/custom presets
   const [horizon, setHorizon] = useState(252);           // risk window (betas / hedge)
@@ -191,11 +191,6 @@ export default function Home() {
               <div className="caption" style={{ marginTop: -2 }}>
                 Betas (the hedge) come from the <b>risk window</b> so they stay stable; the <b>signal window</b> reads the
                 recent idiosyncratic trajectory, so a shorter one surfaces fresher entries/exits.
-              </div>
-              <div className="field">
-                <label>Equipment names (fundamentals only — no regression)</label>
-                <input className="input" value={equipment} onChange={(e) => setEquipment(e.target.value)}
-                  placeholder="e.g. ETN VRT" />
               </div>
               <button className="btn" onClick={doRun} disabled={busy}>
                 {busy ? 'Running…' : 'Run screen'}
